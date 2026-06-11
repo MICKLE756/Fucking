@@ -1,0 +1,24 @@
+# Conda environment for reproducing the experiments.
+#
+#   conda env create -f environment.yml
+#   conda activate mecpe
+#
+# torch is intentionally installed via pip so you can match your CUDA build.
+# For a CUDA 11.8 GPU box, replace the torch line under pip: with:
+#   --extra-index-url https://download.pytorch.org/whl/cu118
+#   torch==2.1.2
+# For CPU-only (e.g. unit tests), the default PyPI wheel is fine.
+name: mecpe
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - torch>=2.0
+      - transformers>=4.30
+      - tokenizers>=0.13
+      - numpy>=1.23
+      - scikit-learn>=1.1
+      - PyYAML>=6.0
+      - tqdm>=4.64

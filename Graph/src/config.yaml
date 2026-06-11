@@ -1,0 +1,89 @@
+# cuda
+cuda_index: 0
+# model_name: ''
+
+# path
+data_dir: '/root/autodl-tmp/Test/hilo/data'
+dataset_dir: 'dataset'
+preprocessed_dir: preprocessed
+target_dir: save
+bert_path: /root/autodl-tmp/Test/hilo/data/bert-base-cased
+emb_file: 'bert-base-cased.npy'
+
+# path
+# bert_path: bert-base-uncased 
+batch_size: 4
+epoch_size: 25
+dropout: 0.1
+max_length: 35
+total_length: 512
+loss_weight: 2.0
+
+# training
+shuffle: True
+bert_lr: 1e-5
+learning_rate: 1e-4
+patience: 100
+max_grad_norm: 1.0
+warmup_proportion: 0.1
+gradient_accumulation_steps: 1
+adam_epsilon: 1e-7
+warmup_steps: 0
+weight_decay: 0.00
+
+
+pad: '[PAD]'
+unk: '[UNK]'
+cls: '[CLS]'
+sep: '[SEP]'
+# path
+# pad: 0
+# unk: 1
+min_freq: 2
+
+# seed
+seed: 42
+
+emo_cat: 'yes'
+audio_dim: 6373
+video_dim: 4096
+# hid_size: 500
+# inner_dim: 300
+hid_size: 400
+inner_dim: 300
+alpha: 5
+graph_weight: 0.5
+num_heads: [4, 8]
+head2: 4
+hidden_dim: 1536 
+out_dim: 1536
+
+# === Method-chapter (英文_改_Method定稿.md §3.3-§3.10) ===
+use_method: 'yes'          # 'yes' -> finalized method pathway; 'no' -> legacy Graph(55.29)
+warmup_K: 3                # warmup epochs before evidence/distillation/ET edges activate
+et_anneal_epochs: 5        # scheduled-sampling anneal length (gold -> predicted)
+top_m: 50                  # evidence budget |T| per dialogue (top-M by relevance pi)
+s_pi: 10.0                 # presence-weight temperature
+neg_ratio: 5.0             # sampled negatives per positive in L_pair
+pair_pos_weight: 2.0       # positive-class weight omega in wBCE
+ema_momentum: 0.01         # EMA momentum for anchored baselines / standardization
+pos_eta: 1.0               # bounded positional prior amplitude eta
+alpha1: 1.0                # L_emo weight
+alpha2: 1.0                # L_cau weight
+beta: 1.0                  # L_score weight
+lambda1: 1.0               # L_dst (distillation) weight
+lambda2: 0.1               # L_pos weight
+gamma: 0.01                # L_anc (baseline anchoring) weight
+tau_conflict: 0.1          # kappa in the Conflict criterion
+llm_anno_path: null        # path to offline LLM reasoning annotations (pickle); null -> distillation skipped
+fusion_mode: 'cond'        # §3.8 fusion: 'cond' (complementarity-aware: rho-scaling + confidence/conflict gate + agreement) | 'gated' (original symmetric gate, for ablation)
+
+# === Ablation switches (default 'yes' == full method; set 'no' to remove one component) ===
+use_self_loop_fix: 'yes'        # §3.3 self-loop signature on the diagonal pair block
+use_necessity: 'yes'            # §3.5 perturbation-based necessity evidence z^nec
+use_pos_prior: 'yes'            # §3.6 bounded positional prior b^pos
+use_distillation: 'yes'         # §3.7 LLM reasoning evidence z^rea in fusion + L_dst
+use_emotion_transition: 'yes'   # §3.3 emotion-transition relation edges
+
+# === Evaluation protocol ===
+eval_threshold_on: 'valid'      # 'valid' -> tune decision threshold on validation, apply to test (publishable, no test leakage); 'test' -> legacy in-sample sweep on test

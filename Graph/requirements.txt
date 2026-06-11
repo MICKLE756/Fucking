@@ -1,0 +1,15 @@
+# Minimal runtime dependencies actually imported by the project.
+# (Verified by scanning every import in src/, main.py, tests/.)
+# Pick the torch build that matches your CUDA; see REPRODUCE.md.
+torch>=2.0
+transformers>=4.30
+tokenizers>=0.13
+numpy>=1.23
+scikit-learn>=1.1
+PyYAML>=6.0
+tqdm>=4.64
+
+# Optional: only needed if you run the offline LLM teacher annotation
+# (src/annotate_llm.py) against a local vLLM OpenAI-compatible server.
+# It uses only the Python standard library (urllib), so no extra package is
+# required here; just have a vLLM server reachable at --base-url.

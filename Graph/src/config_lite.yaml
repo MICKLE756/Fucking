@@ -1,0 +1,86 @@
+# =====================================================================
+# config_lite.yaml  --  TRIMMED PRESET for the finalized method (§3.3-§3.10)
+#
+# Goal: reduce the tuning burden. Everything below is split into
+#   (A) the 4 knobs you actually tune, and
+#   (B) fixed, theoretically-grounded defaults you normally leave alone.
+#
+# Run with:
+#     python main.py --config src/config_lite.yaml
+#
+# (Identical key set to config.yaml, just reorganized + commented so the
+#  search space is unambiguous. Anything in section (B) can be copied from
+#  config.yaml verbatim; we keep it here only so the file is self-contained.)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# (A) MAIN HYPERPARAMETERS -- the only ones worth tuning
+# ---------------------------------------------------------------------
+warmup_K: 3                # warmup epochs before evidence/distillation/ET edges activate; try {2,3,5}
+top_m: 50                  # evidence budget |T| per dialogue (top-M by relevance); try {30,50,80}
+lambda1: 1.0               # distillation weight L_dst; try {0.5,1.0,2.0}; set 0 to disable LLM distillation
+fusion_mode: 'cond'        # 'cond' (complementarity-aware, default) | 'gated' (unconditioned, ablation baseline)
+
+# ---------------------------------------------------------------------
+# (B) FIXED DEFAULTS -- leave as-is (grounded values; not part of the search)
+# ---------------------------------------------------------------------
+use_method: 'yes'          # 'yes' -> finalized method pathway; 'no' -> legacy Graph(55.29)
+llm_anno_path: null        # path to offline LLM annotations (pickle); null -> distillation skipped
+# --- loss weights: kept at 1.0 (main) / small (regularizers); do not sweep ---
+alpha1: 1.0                # L_emo weight        (fixed)
+alpha2: 1.0                # L_cau weight        (fixed)
+beta: 1.0                  # L_score weight      (fixed)
+lambda2: 0.1               # L_pos weight        (fixed; small prior regularizer)
+gamma: 0.01                # L_anc weight        (fixed; tiny baseline anchoring)
+# --- schedule / selection / scaling: grounded defaults, do not tune ---
+et_anneal_epochs: 5        # scheduled-sampling anneal length (gold -> predicted)
+s_pi: 10.0                 # presence-weight temperature
+neg_ratio: 5.0             # sampled negatives per positive in L_pair
+pair_pos_weight: 2.0       # positive-class weight omega in wBCE
+ema_momentum: 0.01         # EMA momentum for anchored baselines / standardization
+pos_eta: 1.0               # bounded positional prior amplitude eta
+tau_conflict: 0.1          # kappa in the Conflict criterion
+
+# ---------------------------------------------------------------------
+# (C) INFRASTRUCTURE / BACKBONE -- environment & data, not method knobs
+# ---------------------------------------------------------------------
+cuda_index: 0
+data_dir: '/root/autodl-tmp/Test/hilo/data'
+dataset_dir: 'dataset'
+preprocessed_dir: preprocessed
+target_dir: save
+bert_path: /root/autodl-tmp/Test/hilo/data/bert-base-cased
+emb_file: 'bert-base-cased.npy'
+batch_size: 4
+epoch_size: 25
+dropout: 0.1
+max_length: 35
+total_length: 512
+loss_weight: 2.0
+shuffle: True
+bert_lr: 1e-5
+learning_rate: 1e-4
+patience: 100
+max_grad_norm: 1.0
+warmup_proportion: 0.1
+gradient_accumulation_steps: 1
+adam_epsilon: 1e-7
+warmup_steps: 0
+weight_decay: 0.00
+pad: '[PAD]'
+unk: '[UNK]'
+cls: '[CLS]'
+sep: '[SEP]'
+min_freq: 2
+seed: 42
+emo_cat: 'yes'
+audio_dim: 6373
+video_dim: 4096
+hid_size: 400
+inner_dim: 300
+alpha: 5
+graph_weight: 0.5
+num_heads: [4, 8]
+head2: 4
+hidden_dim: 1536
+out_dim: 1536
