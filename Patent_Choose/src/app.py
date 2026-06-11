@@ -1,46 +1,65 @@
+"""FastAPI Web 应用
+
+按浏览器会话隔离对话状态：服务端以 ``sid`` Cookie 标识会话，
+每个会话持有独立的 ``DialogProcess`` 实例，避免多用户 / 多标签页串话。
+"""
+
 import uuid
+
 import config
 import uvicorn
 from fastapi import FastAPI, Request
-from dialog_process import DialogProcess
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
-# 初始化组件
-dialog_process = DialogProcess()
-session_id = str(uuid.uuid4())[:8]
+from dialog_process import DialogProcess
 
-# 创建 FastAPI 实例
+# 会话存储：sid -> DialogProcess。超过上限按插入顺序淘汰最旧会话。
+SESSION_COOKIE = "sid"
+MAX_SESSIONS = 500
+_sessions: dict[str, DialogProcess] = {}
+
 app = FastAPI()
-
-# 挂载静态文件
 app.mount("/static", StaticFiles(directory=str(config.BASE_DIR / "templates")))
 
 
-# 首页
+def _get_or_create_session(request: Request) -> tuple[str, DialogProcess]:
+    """根据请求 Cookie 取回会话，不存在则新建。"""
+    sid = request.cookies.get(SESSION_COOKIE)
+    if not sid or sid not in _sessions:
+        sid = uuid.uuid4().hex[:12]
+        if len(_sessions) >= MAX_SESSIONS:
+            _sessions.pop(next(iter(_sessions)))
+        _sessions[sid] = DialogProcess()
+    return sid, _sessions[sid]
+
+
 @app.get("/")
 async def homepage():
     return RedirectResponse("/static/index.html")
 
 
-# 处理用户消息
 @app.post("/chat")
 async def handle_message(request: Request):
     data = await request.json()
     user_message = data["message"]
-    dialog_process.workflow.state["session_id"] = session_id
+
+    sid, dialog_process = _get_or_create_session(request)
+    dialog_process.workflow.state["session_id"] = sid
+
     resp = dialog_process(user_message)
-    # 附加状态信息供前端展示
     resp["state"] = dialog_process.get_state()
-    return JSONResponse(resp)
+
+    response = JSONResponse(resp)
+    response.set_cookie(SESSION_COOKIE, sid, httponly=True, samesite="lax")
+    return response
 
 
-# 重置会话
 @app.post("/reset")
-async def reset_session():
-    global session_id
-    dialog_process.reset()
-    session_id = str(uuid.uuid4())[:8]
+async def reset_session(request: Request):
+    sid = request.cookies.get(SESSION_COOKIE)
+    if sid:
+        _sessions.pop(sid, None)
     return JSONResponse({"ok": True})
 
 
