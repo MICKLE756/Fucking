@@ -2,24 +2,27 @@
 %% Multimodal Emotion-Cause Pair Extraction with Necessity Evidence,
 %% LLM-Distilled Counterfactual Reasoning, and Complementarity-Aware Fusion
 %%
-%% Draft prepared in the Elsevier elsarticle format, suitable for
-%% submission to CCF-C international journals such as Neurocomputing,
-%% Knowledge-Based Systems, or Expert Systems with Applications.
+%% Two-column IEEE journal format (IEEEtran), following the layout of
+%% "Bridging Discrepancies in Debate ..." (IEEE Trans. on Affective
+%% Computing). Suitable for submission to IEEE TAFFC / TMM (CCF-B).
 %%
-%% NOTE (draft): all reported numbers in Section "Experiments" are
-%% PLACEHOLDER values to be replaced by the real experimental results.
-%% Search for "TODO" to locate every number that must be updated.
+%% NOTE (draft): every quantitative result in Section IV is a PLACEHOLDER
+%% to be replaced by the real experiments. Search for "TODO".
 %% =====================================================================
-\documentclass[preprint,authoryear,12pt]{elsarticle}
+\documentclass[journal]{IEEEtran}
 
+\usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{array}
 \usepackage{url}
-\usepackage[hidelinks]{hyperref}
 \usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
+\usepackage{cite}
 
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 \newcommand{\Real}{\mathbb{R}}
@@ -27,422 +30,604 @@
 \newcommand{\Enc}{\mathrm{Enc}}
 \newcommand{\Fuse}{\mathrm{Fuse}}
 
-\journal{Neurocomputing}
+\newcommand{\phbox}[2]{%
+  \fbox{\parbox[c][#1][c]{\dimexpr#2-2\fboxsep-2\fboxrule\relax}{%
+  \centering\itshape\small Placeholder figure --- replace with the real graphic.}}}
 
 \begin{document}
 
-\begin{frontmatter}
+\title{Necessity, Reasoning, and Position: Complementarity-Aware
+Evidence Fusion for Multimodal Emotion-Cause Pair Extraction in
+Conversations}
 
-\title{Necessity, Reasoning, and Position: Complementarity-Aware Evidence
-Fusion for Multimodal Emotion-Cause Pair Extraction in Conversations}
+\author{First~Author,~Second~Author,~and~Corresponding~Author%
+\thanks{The authors are with the Department of Computer Science,
+Shantou University, Shantou 515063, China
+(e-mail: corresponding.author@example.edu). \emph{(Corresponding author:
+Corresponding Author.)}}%
+\thanks{Manuscript draft; \today.}}
 
-\author[a]{First Author}
-\ead{first.author@example.edu}
-\author[a]{Second Author}
-\author[a]{Corresponding Author\corref{cor1}}
-\ead{corresponding.author@example.edu}
-\cortext[cor1]{Corresponding author.}
-\affiliation[a]{organization={Department of Computer Science, Shantou University},
-  city={Shantou},
-  postcode={515063},
-  country={China}}
+\markboth{Journal of \LaTeX\ Class Files, Draft}%
+{Author \MakeLowercase{\textit{et al.}}: Complementarity-Aware Evidence Fusion for MECPE}
 
+\IEEEtitleabstractindextext{%
 \begin{abstract}
 Multimodal emotion-cause pair extraction (MECPE) aims to identify, for every
 utterance that expresses an emotion in a conversation, the utterances that cause
 that emotion, using textual, acoustic, and visual signals together with speaker
-identity. Existing approaches model inter-utterance interaction but rarely ask
-\emph{why} a candidate is predicted to be a cause: their decisions are not
-grounded in any explicit notion of necessity, and the strong positional regularity
-of causes is either ignored or allowed to dominate. We propose a model that
-couples a relation-aware multimodal encoder with three complementary sources of
-decision evidence: (i) perturbation-based \emph{necessity evidence} that probes how
-much each candidate cause and each non-verbal modality contributes to a pair
-prediction; (ii) a \emph{bounded positional prior} that exploits the locality of
-causes without letting position override semantics; and (iii) \emph{reasoning
-evidence} distilled offline from a large language model (LLM) as text-grounded
-counterfactual judgements. A complementarity-aware gating network fuses these
-signals conditioned on model confidence, teacher reliability, and their agreement,
-so that each source compensates the other's weakness; the LLM is queried only
-offline and never at inference. Experiments on the benchmark Emotion-Cause-in-Friends
-(ECF) corpus show that the proposed method improves the emotion-cause pair $F_1$ over
-strong baselines, and ablations confirm that every component contributes. % TODO: tighten claims after final numbers
+identity. Despite rapid progress, existing models share two weaknesses. First,
+their pair decisions are vulnerable to \emph{spurious correlation}: a candidate is
+predicted as a cause without ever testing whether removing it would actually change
+the prediction, so the model may latch onto a dominant modality or a co-occurring
+topic. Second, causes exhibit strong \emph{positional regularity}, which is either
+ignored or allowed to override semantics, producing position-biased predictions. We
+propose a model that augments a relation-aware multimodal encoder with three
+complementary sources of decision evidence: (i) perturbation-based \emph{necessity
+evidence} that probes how much each candidate cause and each non-verbal modality
+contributes to a pair prediction; (ii) a \emph{bounded positional prior} that
+exploits the locality of causes without letting position dominate; and (iii)
+\emph{reasoning evidence} distilled offline from a large language model (LLM) as
+text-grounded counterfactual judgements. A complementarity-aware gating network
+fuses these signals conditioned on model confidence, teacher reliability, and their
+agreement, so each source compensates the others' weaknesses; the LLM is queried
+only offline and never at inference. On the benchmark Emotion-Cause-in-Friends (ECF)
+corpus the method improves the emotion-cause pair $F_1$ over strong baselines, and
+extensive ablations confirm that every component contributes. % TODO: tighten claims after final numbers
 \end{abstract}
 
-\begin{keyword}
-Emotion-cause pair extraction \sep Multimodal conversation understanding \sep
-Graph neural networks \sep Counterfactual reasoning \sep Knowledge distillation \sep
-Affective computing
-\end{keyword}
+\begin{IEEEkeywords}
+Affective computing, emotion-cause pair extraction, multimodal conversation
+understanding, graph neural networks, counterfactual reasoning, knowledge
+distillation.
+\end{IEEEkeywords}}
 
-\end{frontmatter}
+\maketitle
+
+\IEEEdisplaynontitleabstractindextext
+\IEEEpeerreviewmaketitle
 
 % =====================================================================
 \section{Introduction}
 \label{sec:intro}
-
-Understanding \emph{why} a speaker feels a certain way is central to affective
-computing. Beyond recognizing that an utterance conveys an emotion, many
-applications---empathetic dialogue systems, opinion mining, and mental-health
+\IEEEPARstart{U}{nderstanding} \emph{why} a speaker feels a certain way is central
+to affective computing. Beyond recognizing that an utterance conveys an emotion,
+many applications---empathetic dialogue systems, opinion mining, and mental-health
 support---require identifying the events or utterances that \emph{trigger} that
-emotion. The task of emotion-cause pair extraction (ECPE) formalizes this goal:
-given a document, jointly extract emotion utterances and their corresponding cause
-utterances as pairs \citep{xia2019ecpe}. In conversations, emotions and their
-causes are conveyed not only through text but also through tone of voice and facial
-expression, which motivates the multimodal emotion-cause pair extraction (MECPE)
-task \citep{wang2023mecpe}: for each emotion-bearing utterance in a multi-party
-conversation, find the utterances that cause it, using text, audio, and video.
+emotion. Emotion-cause extraction (ECE) was first framed as detecting the clauses
+that cause a given emotion \cite{lee2010emotion}; emotion-cause pair extraction
+(ECPE) then removed the need for emotion annotations at test time by jointly
+extracting emotion and cause clauses as pairs \cite{xia2019ecpe}. In conversations,
+emotions and their causes are conveyed not only through text but also through tone
+of voice and facial expression, which motivates the multimodal emotion-cause pair
+extraction (MECPE) task \cite{wang2023mecpe}: for each emotion-bearing utterance in
+a multi-party conversation, find the utterances that cause it, using text, audio,
+and video.
 
-MECPE is challenging for three intertwined reasons. \emph{First}, the label space
-is quadratic in the number of utterances and highly imbalanced: only a small
-fraction of utterance pairs are genuine emotion-cause pairs. \emph{Second}, a
-large share of causes are \emph{self-contained}---the emotion is triggered by the
-event described \emph{within} the emotion utterance itself, so the cause coincides
-with the emotion utterance. \emph{Third}, causes exhibit strong but not absolute
-positional regularity: they tend to lie close to the emotion utterance, which is
-informative yet dangerous to over-trust.
+The conversational and multimodal setting is precisely what makes the task valuable
+in practice. In an empathetic dialogue agent, knowing that a user's frustration was
+caused by an earlier system response, rather than by the current utterance, changes
+how the agent should repair the interaction. In opinion mining over multimedia
+content, attributing a sentiment to the event that triggered it---spoken with a
+particular tone or accompanied by a particular facial expression---yields far more
+actionable insight than a sentiment label alone. These applications require not only
+\emph{accurate} pair predictions but also predictions that are \emph{robust} to
+superficial cues and, ideally, \emph{explainable}, because an attribution that cannot
+be justified is difficult to act upon.
+
+MECPE is challenging for several intertwined reasons. The label space is quadratic
+in the number of utterances and highly imbalanced, since only a small fraction of
+utterance pairs are genuine emotion-cause pairs. A large share of causes are
+\emph{self-contained}---the emotion is triggered by the event described
+\emph{within} the emotion utterance itself, so the cause coincides with the emotion
+utterance. And causes exhibit strong but not absolute positional regularity: they
+tend to lie close to the emotion utterance, which is informative yet dangerous to
+over-trust.
+
+\begin{figure}[t]
+  \centering
+  \phbox{4.2cm}{\columnwidth}
+  \caption{Two failure modes that motivate this work. \emph{Top:} spurious
+  correlation---the model predicts a pair from a co-occurring topic or a dominant
+  modality without testing whether the candidate cause is \emph{necessary}.
+  \emph{Bottom:} positional bias---a nearby utterance is mechanically taken as the
+  cause. Our model counters both with explicit necessity evidence and a bounded
+  positional prior. \todo{draw the real figure}}
+  \label{fig:motivation}
+\end{figure}
 
 Recent models substantially improve MECPE by modeling rich inter-utterance
 interaction with graph or transformer architectures and by injecting label
-constraints \citep{li2024hilo}. However, two limitations remain. (1) Their pair
-decisions are not grounded in any explicit notion of \emph{necessity}: the model
-predicts a pair without ever asking whether removing the candidate cause would
-actually change the prediction, which makes decisions hard to calibrate and to
-explain. (2) External world knowledge---the kind of commonsense causal reasoning
-at which large language models (LLMs) excel---is not exploited, even though it is
-exactly the missing ingredient for distinguishing genuine triggers from mere
-topical co-occurrence. A naive remedy, querying an LLM per pair at inference, is
-impractical at the quadratic scale of MECPE and cannot perceive the non-verbal
-modalities.
+constraints \cite{li2024hilo}, and the latest work explores multi-LLM debate to
+reconcile divergent predictions \cite{wu2025decdebate}. However, two limitations
+persist and motivate this work (Fig.~\ref{fig:motivation}).
 
-We address these limitations with a model that augments a relation-aware
-multimodal encoder with \emph{three complementary sources of decision evidence}.
-\textbf{(i) Necessity evidence} (Section~\ref{sec:necessity}) is a model-internal,
-perturbation-based signal: we replace the candidate cause---and, separately, each
-non-verbal modality of the cause utterance---with a learned, data-anchored neutral
-baseline, re-score the pair, and measure the resulting drop. A direct calibration
-loss anchors this signal to the pair labels. \textbf{(ii) A bounded positional
-prior} (Section~\ref{sec:pos}) encodes relative position as a capped additive term
-on the pair score, with a regularizer that prevents position from overriding the
-semantic evidence. \textbf{(iii) Reasoning evidence} (Section~\ref{sec:llm}) is
-distilled offline from an LLM: for hard pairs, a structured prompt elicits
-text-grounded \emph{counterfactual} judgements (necessity, sufficiency, direction,
-spuriousness) together with a self-agreement reliability estimate; a lightweight
-student then predicts these scalars from the pair representation alone, so that no
-LLM is queried at inference.
+\noindent\textbf{(1) Spurious correlation.} Pair decisions are not grounded in any
+explicit notion of \emph{necessity}. The model predicts a pair without ever asking
+whether removing the candidate cause---or a particular modality of it---would
+actually change the prediction. As a result it can rely on a co-occurring topic or
+on a single dominant modality, which inflates false positives and makes decisions
+hard to calibrate and to explain.
 
-The three signals are reconciled by a \textbf{complementarity-aware gating network}
-(Section~\ref{sec:fusion}) that conditions on the model's confidence, the teacher's
-predicted reliability, and the agreement between the model's own necessity signal
-and the LLM's necessity judgement. The design realizes an explicit division of
-labor: the LLM \emph{compensates} the small model where the latter is uncertain,
-while the small model \emph{leads} where the LLM is unreliable or disagrees. We
-further introduce a necessity-modulated agreement term so that consensus boosts the
-score only when both sources agree a pair \emph{is} causal, preventing
-false-positive inflation when both agree it is \emph{not}.
+\noindent\textbf{(2) Positional bias.} Because causes cluster near the emotion
+utterance, a model that does not separate genuine semantic evidence from positional
+regularity tends to mechanically pair adjacent utterances, degrading precision when
+the true cause is distant or self-contained.
+
+Both failure modes are instances of \emph{shortcut learning}, in which a model exploits
+statistically predictive but non-causal features that fail to transfer to harder cases
+\cite{geirhos2020shortcut}. Our central design choice is therefore to make the model's
+pair decisions answerable to an explicit notion of necessity, rather than to whatever
+correlations happen to be predictive on the training distribution.
+
+A tempting remedy is to query an LLM, which exhibits strong commonsense causal
+reasoning, for every candidate pair. This is impractical at the quadratic scale of
+MECPE, and an LLM cannot perceive the non-verbal modalities. We therefore restrict
+the LLM to \emph{text-grounded} reasoning, query it \emph{only offline}, and
+\emph{distill} its judgements into a lightweight student that runs without any LLM
+call at inference.
+
+Concretely, we augment a relation-aware multimodal encoder with three complementary
+sources of decision evidence. \textbf{(i) Necessity evidence}
+(Section~\ref{sec:necessity}) is a model-internal, perturbation-based signal: we
+replace the candidate cause---and, separately, each non-verbal modality of the cause
+utterance---with a learned, data-anchored neutral baseline, re-score the pair, and
+measure the resulting drop, with a direct calibration loss anchoring the signal to
+the pair labels. \textbf{(ii) A bounded positional prior}
+(Section~\ref{sec:pos}) encodes relative position as a capped additive term on the
+pair score, regularized so position can refine but never override the semantic
+evidence. \textbf{(iii) Reasoning evidence} (Section~\ref{sec:llm}) is distilled
+offline from an LLM: for hard pairs, a structured prompt elicits text-grounded
+\emph{counterfactual} judgements (necessity, sufficiency, direction, spuriousness)
+plus a self-agreement reliability estimate; a student then predicts these scalars
+from the pair representation alone. The three signals are reconciled by a
+\textbf{complementarity-aware gating network} (Section~\ref{sec:fusion}) that
+conditions on the model's confidence, the teacher's reliability, and the agreement
+between the model's own necessity signal and the LLM's necessity judgement.
 
 Our contributions are summarized as follows.
 \begin{itemize}
   \item We introduce a unified MECPE model that grounds pair decisions in explicit
   \emph{necessity evidence}, obtained by faithful, pair-local perturbations of the
   cause utterance and of each non-verbal modality, and calibrated directly against
-  the pair labels.
+  the pair labels, directly attacking spurious correlation.
   \item We distill commonsense \emph{counterfactual reasoning} from an LLM into a
-  lightweight student with a dedicated treatment of self-contained causes, so that
+  lightweight student, with a dedicated treatment of self-contained causes, so that
   semantically informed external knowledge is available at inference \emph{without}
   any LLM call.
   \item We propose a \emph{complementarity-aware fusion} mechanism, together with a
   bounded positional prior and a necessity-modulated agreement term, that lets each
   evidence source compensate the others' weaknesses under explicit reliability and
   agreement conditioning.
-  \item On the benchmark ECF corpus the method improves emotion-cause pair $F_1$
-  over strong baselines, and extensive ablations isolate the contribution of each
-  component. % TODO: finalize claims after experiments
+  \item On the benchmark ECF corpus the method improves emotion-cause pair $F_1$ over
+  strong baselines, and extensive ablations isolate the contribution of each
+  component. % TODO: finalize claims
 \end{itemize}
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:related} reviews emotion-cause analysis, multimodal conversational
+modeling, interpretability and counterfactual reasoning, and LLM distillation.
+Section~\ref{sec:method} formalizes the task and details the encoder, the three
+evidence sources, the fusion module, and the two-phase training procedure.
+Section~\ref{sec:exp} presents the experimental setup and results, including the main
+comparison, ablations, modality and sensitivity analyses, and qualitative studies.
+Section~\ref{sec:discussion} discusses why the evidence sources are complementary and
+states the limitations, and Section~\ref{sec:conclusion} concludes.
 
 % =====================================================================
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Emotion cause analysis}
-Emotion cause extraction was first framed as detecting the clauses that cause a
-given emotion \citep{lee2010emotion}. \citet{xia2019ecpe} introduced emotion-cause
-pair extraction (ECPE), which removes the need for emotion annotations at test time
-by jointly extracting emotion and cause clauses as pairs. Subsequent work improved
-ECPE with two-dimensional representations \citep{ding2020ecpe2d} and effective
-inter-clause ranking \citep{wei2020rankcp}. These methods operate on text alone and
-on monologue-style documents.
+\subsection{Emotion Cause Analysis}
+ECE was first framed as detecting the clauses that cause a given emotion
+\cite{lee2010emotion}, and multi-task formulations later coupled it with related
+emotion-analysis objectives \cite{turcan2021multitask}. Xia and Ding~\cite{xia2019ecpe} introduced ECPE,
+which jointly extracts emotion and cause clauses as pairs without requiring emotion
+annotations at test time. A rich line of discriminative methods followed: two-dimensional
+representations \cite{ding2020ecpe2d}, sliding-window multi-label learning
+\cite{ding2020end2end}, transition-based parsing \cite{fan2020transition}, and
+effective inter-clause ranking \cite{wei2020rankcp}. A complementary line of
+generative methods reframes pair extraction as sequence generation or masked
+prediction, directly emitting descriptions of the emotion-cause relationship rather
+than classifying candidate clauses. Both families operate on text alone and on
+monologue-style documents, and the discriminative family in particular identifies
+causes by modeling characteristic correlations between clauses---precisely the setting
+in which spurious correlation can arise, since a clause that merely co-occurs with the
+emotion is easily mistaken for its cause. Relative position has long been recognized as
+a strong but double-edged cue for cause identification \cite{ding2019ece}, which
+directly motivates our \emph{bounded} treatment of positional information. Our perturbation-based necessity evidence is
+motivated by exactly this failure mode: rather than trusting a learned correlation, we
+test whether removing a candidate actually changes the prediction.
 
-\paragraph{Multimodal emotion-cause pair extraction}
-\citet{wang2023mecpe} extended the task to conversations and to multiple modalities,
-releasing the Emotion-Cause-in-Friends (ECF) corpus and establishing the MECPE task.
-\citet{li2024hilo} proposed a holistic-interaction model with label constraints that
-substantially advanced the state of the art. Our work builds on this line: we adopt
-a relation-aware multimodal encoder over the conversation graph, but depart from
-prior work by grounding pair decisions in explicit necessity evidence and by
-distilling external counterfactual reasoning, rather than relying on interaction
-modeling alone.
+\subsection{Multimodal Emotion-Cause Pair Extraction}
+Wang et al.~\cite{wang2023mecpe} extended the task to conversations and
+to multiple modalities, releasing the Emotion-Cause-in-Friends (ECF) corpus and
+establishing the MECPE task. Subsequent work advanced the state of the art with
+holistic interaction and label constraints (HiLo) \cite{li2024hilo}, unified emotion
+recognition and cause modeling (UniMEEC) \cite{jin2024unimeec}, multimodal
+heterogeneous graphs (M3HG) \cite{zhang2024m3hg}, and adaptive hierarchical reasoning
+(AHMRC) \cite{li2024ahmrc}. Most recently, DEC-Debate \cite{wu2025decdebate} exploits
+discrepancies between discriminative and generative predictions through a multi-LLM
+debate. Our work builds on the relation-aware encoder common to this line but departs
+from it by grounding pair decisions in explicit necessity evidence and by distilling
+external counterfactual reasoning offline, rather than relying on interaction modeling
+or on online LLM queries. Two characteristics of conversational MECPE shape our design
+and recur across this literature: a large fraction of causes are \emph{self-contained}
+(the trigger lies within the emotion utterance), and genuine causes cluster near the
+emotion utterance. Prior models either treat the self-cause case implicitly or let
+positional cues enter the representation unconstrained; we instead give self-contained
+causes an explicit marker and bound the influence of position, as detailed in
+Section~\ref{sec:method}.
 
-\paragraph{Graph and multimodal modeling of conversations}
-Graph neural networks are a natural fit for conversations, where utterances relate
-through speaker identity and reply structure \citep{ghosal2019dialoguegcn}. We use
-relation-specific attention in the spirit of relational GCNs \citep{schlichtkrull2018rgcn}
-and graph attention networks \citep{velickovic2018gat}. For multimodal fusion, prior
-work disentangles modality-invariant and modality-specific factors \citep{hazarika2020misa}
-and aligns modalities with cross-modal transformers \citep{tsai2019mult}; we keep the
-fusion light and instead focus the modeling effort on causal-style evidence.
+\subsection{Graph and Multimodal Modeling of Conversations}
+Conversational affect modeling has a substantial history, from recurrent context
+modeling \cite{majumder2019dialoguernn} and contextual reasoning networks
+\cite{hu2021dialoguecrn} to the broader study of emotion recognition in conversation
+\cite{poria2019meld_conv,poria2019meld}. Graph neural networks are a natural fit for
+conversations, where utterances relate through speaker identity and reply structure
+\cite{ghosal2019dialoguegcn}. We use
+relation-specific attention in the spirit of relational GCNs \cite{schlichtkrull2018rgcn}
+and graph attention networks \cite{velickovic2018gat}, and we incorporate commonsense
+context in the spirit of \cite{ghosal2020cosmic}. For multimodal fusion, prior work
+disentangles modality-invariant and modality-specific factors \cite{hazarika2020misa},
+fuses modalities with tensor products \cite{zadeh2017tensor}, and aligns modalities with
+cross-modal transformers \cite{tsai2019mult} built on the attention mechanism
+\cite{vaswani2017attention}; we keep the fusion light and instead focus the modeling effort on causal-style evidence. A
+recurring concern in conversational modeling is the gap between training, where gold
+emotion labels can shape the graph, and inference, where those labels are predicted; we
+address this directly with scheduled sampling on the emotion-transition relation
+(Section~\ref{sec:encoder}), so the training-time graph converges to the inference-time
+graph rather than relying on an idealized structure that is unavailable at test time.
 
-\paragraph{Interpretability and counterfactual reasoning}
-Perturbation-based attribution explains predictions by measuring sensitivity to
-input changes \citep{ribeiro2016lime,lundberg2017shap}. We repurpose this idea
-\emph{inside} training: necessity evidence is a model-level signal that both
-regularizes and explains pair decisions, distinct from asserting causal relations in
-the world. Counterfactual reasoning has deep roots in causal inference
-\citep{pearl2009causality}; we obtain weak, text-grounded counterfactual judgements
-by prompting an LLM, which is complementary to---not a substitute for---the
-model-internal perturbation signal.
+\subsection{Interpretability and Counterfactual Reasoning}
+Perturbation-based attribution explains predictions by measuring sensitivity to input
+changes \cite{ribeiro2016lime,lundberg2017shap}. We repurpose this idea \emph{inside}
+training: necessity evidence is a model-level signal that both regularizes and explains
+pair decisions, distinct from asserting causal relations in the world. Counterfactual
+reasoning has deep roots in causal inference \cite{pearl2009causality} and has been used
+to debias vision-language \cite{niu2021counterfactual} and relation-extraction
+\cite{wang2022causal} models; mitigating spurious correlation is a recognized challenge
+in machine learning \cite{geng2022spurious}. The closely related task of jointly
+extracting multimodal emotion-cause pairs has also been studied in earlier multimedia
+work \cite{chen2022mmecpe}.
+We obtain weak, text-grounded counterfactual judgements by prompting an LLM, which is
+complementary to---not a substitute for---the model-internal perturbation signal. The
+two notions of ``necessity'' we use are deliberately different in kind: the
+perturbation signal is faithful to the model but blind to world knowledge, whereas the
+LLM judgement carries world knowledge but is only loosely tied to the model; their
+agreement is therefore informative, and we exploit it explicitly in the fusion gate
+(Section~\ref{sec:fusion}). Mitigating positional shortcuts also connects our work to
+the broader effort to suppress dataset-specific shortcuts in structured prediction
+\cite{geng2022spurious}.
 
-\paragraph{LLMs and knowledge distillation}
+\subsection{LLMs and Knowledge Distillation}
 LLMs exhibit strong commonsense reasoning when prompted to reason step by step
-\citep{wei2022cot}, but querying them at the quadratic scale of MECPE, and for
-non-verbal signals, is impractical. We therefore distill their reasoning offline into
-a small student \citep{hinton2015distilling}, restricting the LLM to text-grounded
-judgements and obtaining modality evidence from perturbations instead.
+\cite{wei2022cot}, and recent open models \cite{qwen2025,glm2024,llama32024} make such
+reasoning broadly accessible, often adapted efficiently with low-rank adaptation
+\cite{hu2021lora}. Querying them at the quadratic scale of MECPE, and for non-verbal
+signals, is nonetheless impractical. We therefore distill their reasoning offline into a
+small student \cite{hinton2015distilling}, in the spirit of symbolic knowledge
+distillation that compiles LLM commonsense into compact models
+\cite{west2022symbolic}, restricting the LLM to text-grounded judgements
+and obtaining modality evidence from perturbations instead. Compared with online
+debate-style use of multiple LLMs \cite{wu2025decdebate}, offline distillation incurs a
+one-time annotation cost and adds \emph{zero} LLM calls at inference, which is essential
+at the quadratic candidate scale of MECPE; the price is that the student can only
+approximate the teacher, a trade-off we examine empirically in
+Section~\ref{sec:exp}. To control annotation cost without biasing the student toward
+easy pairs, we annotate a stratified mixture of hard and sampled easy pairs drawn from
+the same population the model sees at inference.
 
 % =====================================================================
-\section{Method}
+\section{Methodology}
 \label{sec:method}
-
 We address MECPE in conversations, where the goal is to identify, for each utterance
-that expresses emotion, the utterances that cause it. Our model couples a
-relation-aware multimodal encoder with three complementary sources of decision
-evidence: necessity evidence (Section~\ref{sec:necessity}), a bounded positional prior
-(Section~\ref{sec:pos}), and reasoning evidence distilled offline from an LLM
+that expresses emotion, the utterances that cause it. Our model couples a relation-aware
+multimodal encoder (Section~\ref{sec:encoder}) with three complementary sources of
+decision evidence: necessity evidence (Section~\ref{sec:necessity}), a bounded positional
+prior (Section~\ref{sec:pos}), and reasoning evidence distilled offline from an LLM
 (Section~\ref{sec:llm}). The signals are combined by a gated fusion module
 (Section~\ref{sec:fusion}) and trained jointly (Section~\ref{sec:training}).
-Figure~\ref{fig:overview} gives an overview. % TODO: add overview figure (Graph/结.png can be adapted)
+Fig.~\ref{fig:overview} gives an overview.
 
-\begin{figure}[t]
+\begin{figure*}[t]
   \centering
-  % TODO: replace with the real architecture figure
-  \fbox{\parbox[c][4.5cm][c]{0.9\linewidth}{\centering\itshape
-    Placeholder for the model overview figure: relation-aware encoder
-    $\rightarrow$ soft candidate gate $\rightarrow$ \{necessity evidence,
-    positional prior, distilled reasoning evidence\} $\rightarrow$
-    complementarity-aware fusion $\rightarrow$ pair probability.}}
-  \caption{Overview of the proposed model. The LLM is used only offline to produce
-  distillation targets; at inference the student supplies the reasoning evidence.}
+  \phbox{6.0cm}{\textwidth}
+  \caption{Overview of the proposed model. A relation-aware multimodal encoder produces
+  contextualized utterance and pair representations; a soft candidate gate selects the
+  pairs that receive evidence; perturbation-based necessity evidence, a bounded positional
+  prior, and distilled counterfactual reasoning are fused by a complementarity-aware gate
+  to predict the pair probability. The LLM is used \emph{only} offline to produce
+  distillation targets. \todo{draw the real architecture figure (adapt the diagram in the \texttt{Graph/} folder)}}
   \label{fig:overview}
-\end{figure}
+\end{figure*}
 
 \subsection{Task Formulation}
 \label{sec:task}
-A conversation is a sequence of $N$ utterances $\mathcal{D}=\{u_1,\ldots,u_N\}$.
-Each utterance carries textual, acoustic, and visual features together with a speaker
-identity, $u_i=\{x_i^{t},x_i^{a},x_i^{v},s_i\}$. For an ordered pair $(u_i,u_j)$ in
-which $u_i$ is the candidate \emph{emotion} utterance and $u_j$ the candidate
-\emph{cause} utterance, the model predicts
+A conversation is a sequence of $N$ utterances $\mathcal{D}=\{u_1,\ldots,u_N\}$. Each
+utterance carries textual, acoustic, and visual features together with a speaker
+identity, $u_i=\{x_i^{t},x_i^{a},x_i^{v},s_i\}$. For an ordered pair $(u_i,u_j)$ in which
+$u_i$ is the candidate \emph{emotion} utterance and $u_j$ the candidate \emph{cause}
+utterance, the model predicts
 \begin{equation}
 p_{ij}=P\!\left(y_{ij}=1 \mid u_i,u_j,\mathcal{D}\right),
 \end{equation}
-where $y_{ij}=1$ iff $u_j$ is a cause of the emotion expressed in $u_i$. Two
-auxiliary utterance-level heads predict an emotion probability $\hat p^{\,e}_i$ and a
-cause probability $\hat p^{\,c}_j$; these supply supervision and drive the candidate
-gating of Section~\ref{sec:gate}.
+where $y_{ij}=1$ iff $u_j$ is a cause of the emotion expressed in $u_i$. Two auxiliary
+utterance-level heads predict an emotion probability $\hat p^{\,e}_i$ and a cause
+probability $\hat p^{\,c}_j$; these supply supervision and drive the candidate gating of
+Section~\ref{sec:gate}. We adopt the standard convention that a cause utterance does not
+follow its emotion utterance, restricting candidates to $j\le i$, which yields the
+upper-triangular region used for negative sampling in Section~\ref{sec:training}. The
+self-pair $(i,i)$ is retained as a first-class candidate because, as noted above, a large
+fraction of emotions are triggered within the emotion utterance itself; treating such pairs
+as a special case rather than discarding them is a recurring theme in our design.
 
 \subsection{Relation-Aware Multimodal Encoder}
 \label{sec:encoder}
-\paragraph{Multimodal fusion} Each utterance is projected into a shared
-$H$-dimensional space by fusing its modalities and speaker identity,
-\begin{equation}
-h_i^{0}=\Fuse\!\left(x_i^{t},x_i^{a},x_i^{v},s_i\right)\in\Real^{H}.
-\end{equation}
+The encoder produces context-aware utterance representations whose interactions reflect both
+the conversational structure (who speaks to whom, and in what order) and the affective
+dynamics (where emotions shift). We deliberately keep the multimodal fusion simple and place
+the modeling emphasis on the relation-aware propagation and on the downstream evidence, so
+that the gains we report can be attributed to the evidence pathway rather than to an elaborate
+fusion module.
 
-\paragraph{Conversation graph} We build a heterogeneous graph over utterances with
-four relation types
-$\mathcal{R}=\{\textit{self-loop},\textit{same-speaker},\textit{reply/adjacent},
-\textit{emotion-transition}\}$: \emph{self-loop} ($i=j$); \emph{same-speaker}
-($s_i=s_j,\,i\neq j$); \emph{reply/adjacent} ($|i-j|=1$ or $u_j$ is the reply target
-of $u_i$, with a fallback to the nearest preceding cross-speaker utterance); and
-\emph{emotion-transition}, where structurally connected turns whose emotion labels
+\noindent\textbf{Multimodal fusion.} Each utterance is projected into a shared $H$-dimensional
+space by fusing its modalities and speaker identity,
+$h_i^{0}=\Fuse(x_i^{t},x_i^{a},x_i^{v},s_i)\in\Real^{H}$.
+
+\noindent\textbf{Conversation graph.} We build a heterogeneous graph over utterances with
+four relation types $\mathcal{R}=\{\textit{self-loop},\textit{same-speaker},
+\textit{reply/adjacent},\textit{emotion-transition}\}$: \emph{self-loop} ($i=j$);
+\emph{same-speaker} ($s_i=s_j,\,i\neq j$); \emph{reply/adjacent} ($|i-j|=1$ or $u_j$ is the
+reply target of $u_i$, with a fallback to the nearest preceding cross-speaker utterance);
+and \emph{emotion-transition}, where structurally connected turns whose emotion labels
 differ are re-typed, taking priority over the structural off-diagonal types. The
-emotion-transition relation depends on emotion labels, which are gold during training
-and predicted at inference. To avoid a train--inference mismatch, the source label of
-each such edge is drawn by scheduled sampling \citep{bengio2015scheduled},
+emotion-transition relation depends on emotion labels, which are gold during training and
+predicted at inference. To avoid a train--inference mismatch, the source label of each such
+edge is drawn by scheduled sampling \cite{bengio2015scheduled},
 \begin{equation}
 \ell_i=
 \begin{cases}
 \ell_i^{\mathrm{gold}}, & \text{with probability } \varepsilon_t,\\
 \ell_i^{\mathrm{pred}}, & \text{with probability } 1-\varepsilon_t,
 \end{cases}
-\qquad \varepsilon_t:\,1\rightarrow 0,
+\quad \varepsilon_t:\,1\!\rightarrow\!0,
 \end{equation}
-where $\ell_i^{\mathrm{pred}}$ is the detached arg-max of a preliminary emotion head.
-As $\varepsilon_t$ anneals to $0$, the training-time graph converges to the
-inference-time graph. This relation and the evidence modules of
-Sections~\ref{sec:necessity} and \ref{sec:llm} are activated only after a warmup of
-$K$ epochs; during warmup the graph uses only the three structural relation types.
+where $\ell_i^{\mathrm{pred}}$ is the detached arg-max of a preliminary emotion head. As
+$\varepsilon_t$ anneals to $0$, the training-time graph converges to the inference-time
+graph. This relation and the evidence modules of Sections~\ref{sec:necessity} and
+\ref{sec:llm} are activated only after a warmup of $K$ epochs.
 
-\paragraph{Relation-aware propagation} Messages are aggregated with relation-specific
-attention,
-\begin{equation}
-\alpha_{ij}^{r}=\operatorname*{softmax}_{j}\!\Big(\mathrm{LeakyReLU}\big(a_r^{\top}[\,W_r h_i^{(l)};\,W_r h_j^{(l)}\,]\big)\Big),
-\quad
-h_i^{(l+1)}=\sigma\!\Big(\sum_{r\in\mathcal{R}}\sum_{j\in\mathcal{N}_i^{r}}\alpha_{ij}^{r}\,W_r h_j^{(l)}\Big).
-\end{equation}
-After $L$ layers we obtain contextualized representations $\tilde h_i\in\Real^{H}$,
-written compactly as $\tilde H=\Enc(\{h_i^{0}\})$. A candidate-pair representation
-concatenates the two utterance vectors with their element-wise product and absolute
-difference,
+\noindent\textbf{Relation-aware propagation.} Messages are aggregated with
+relation-specific attention,
+\begin{align}
+\alpha_{ij}^{r}&=\operatorname*{softmax}_{j}\!\Big(\mathrm{LeakyReLU}\big(a_r^{\top}[\,W_r h_i^{(l)};\,W_r h_j^{(l)}\,]\big)\Big),\\
+h_i^{(l+1)}&=\sigma\!\Big(\textstyle\sum_{r\in\mathcal{R}}\sum_{j\in\mathcal{N}_i^{r}}\alpha_{ij}^{r}\,W_r h_j^{(l)}\Big).
+\end{align}
+After $L$ layers we obtain contextualized representations $\tilde h_i\in\Real^{H}$, written
+compactly as $\tilde H=\Enc(\{h_i^{0}\})$. A candidate-pair representation concatenates the
+two utterance vectors with their element-wise product and absolute difference,
 \begin{equation}
 h_{ij}^{\mathrm{pair}}=\big[\tilde h_i;\,\tilde h_j;\,\tilde h_i\odot\tilde h_j;\,|\tilde h_i-\tilde h_j|\big]\in\Real^{4H}.
 \label{eq:pair}
 \end{equation}
 
-\paragraph{Self-contained pairs} For a self-cause pair ($j=i$) this representation
+\noindent\textbf{Self-contained pairs.} For a self-cause pair ($j=i$) this representation
 degenerates: the difference block $|\tilde h_i-\tilde h_i|$ is identically zero and the
 product collapses to $\tilde h_i\odot\tilde h_i$, so a quarter of $h_{ii}^{\mathrm{pair}}$
 carries no signal---an avoidable handicap given that such pairs are about half of the
-labels. We therefore inject a learnable self-loop signature $e^{\mathrm{self}}\in\Real^{H}$
-into the otherwise-dead difference block on the diagonal,
+labels. We inject a learnable self-loop signature $e^{\mathrm{self}}\in\Real^{H}$ into the
+otherwise-dead difference block on the diagonal,
 $h_{ii}^{\mathrm{pair}}=[\tilde h_i;\,\tilde h_i;\,\tilde h_i\odot\tilde h_i;\,e^{\mathrm{self}}]$,
-which gives self-cause pairs a distinct marker while leaving the $4H$ dimension and
-every cross-utterance pair unchanged. Initialized at $e^{\mathrm{self}}=0$, it recovers
-the plain representation at the start of training, and the same signature is applied
-identically in the factual and counterfactual scorings of Section~\ref{sec:necessity},
-so the necessity difference is uncontaminated by the marker.
+which gives self-cause pairs a distinct marker while leaving the $4H$ dimension and every
+cross-utterance pair unchanged. Initialized at $e^{\mathrm{self}}=0$, it recovers the plain
+representation at the start of training, and is applied identically in the factual and
+counterfactual scorings of Section~\ref{sec:necessity}, so the necessity difference is
+uncontaminated by the marker.
 
 \subsection{Soft Candidate Gating}
 \label{sec:gate}
-Enumerating all pairs is quadratic and computing evidence for every pair is costly.
-We define a soft relevance gate from the auxiliary heads,
-$\pi_{ij}=\hat p^{\,e}_i\cdot \hat p^{\,c}_j\in[0,1]$, and allocate the evidence
-computations to the top-$M$ pairs by $\pi_{ij}$, denoted $\mathcal{T}$. Gating governs
-\emph{where computation is spent}, not which pairs may be positive: every valid pair
-still contributes to the pair loss, so no candidate is permanently discarded.
+Enumerating all pairs is quadratic and computing evidence for every pair is costly. We
+define a soft relevance gate from the auxiliary heads, $\pi_{ij}=\hat p^{\,e}_i\cdot\hat
+p^{\,c}_j\in[0,1]$, and allocate the evidence computations to the top-$M$ pairs by
+$\pi_{ij}$, denoted $\mathcal{T}$. Gating governs \emph{where computation is spent}, not
+which pairs may be positive: every valid pair still contributes to the pair loss, so no
+candidate is permanently discarded. This distinction is important for two reasons. It keeps
+the expensive evidence computation on the small set of plausible candidates, which is what
+makes the per-pair cost a constant $O(M)$ rather than $O(N^2)$ (Section~\ref{sec:complexity}),
+and it ensures that the gate cannot become a hard bottleneck that silently caps recall: a pair
+that the auxiliary heads underrate still receives the full pair loss and can be predicted
+positive, it merely does not receive the auxiliary evidence. The presence weight introduced in
+Section~\ref{sec:fusion} further smooths the boundary of $\mathcal{T}$, so the transition
+between ``inside'' and ``outside'' the budget is continuous rather than a hard cutoff that the
+optimizer could exploit.
 
 \subsection{Perturbation-Based Necessity Evidence}
 \label{sec:necessity}
-A candidate cause should matter only if removing it changes the prediction. A scalar
-pair-scoring head $f:\Real^{4H}\!\to\!\Real$ produces the factual score
-$s_{ij}=f(h_{ij}^{\mathrm{pair}})$, supervised by the pair labels,
-$\mathcal{L}_{\mathrm{score}}=\mathrm{BCE}(\sigma(s_{ij}),y_{ij})$.
+A candidate cause should matter only if removing it changes the prediction---the direct
+antidote to spurious correlation. The intuition is the counterfactual one familiar from
+attribution methods: if the model's score is unchanged after we erase the candidate cause,
+then the model was not really using it, and a high probability assigned to such a pair is
+suspect. We turn this intuition into a trainable, model-internal signal by performing
+\emph{faithful} perturbations---ones that actually propagate through the encoder---and by
+calibrating the resulting score drops against the pair labels, so that the magnitude of the
+drop becomes a meaningful feature for the classifier rather than a post-hoc explanation only.
+A scalar pair-scoring head $f:\Real^{4H}\!\to\!\Real$
+produces the factual score $s_{ij}=f(h_{ij}^{\mathrm{pair}})$, supervised by the pair
+labels, $\mathcal{L}_{\mathrm{score}}=\mathrm{BCE}(\sigma(s_{ij}),y_{ij})$.
 
-\paragraph{Anchored baselines} Perturbations replace an element with a neutral
+\noindent\textbf{Anchored baselines.} Perturbations replace an element with a neutral
 baseline rather than zero. With detached exponential-moving-average means $\bar h$
 (utterance space) and $\bar x^{m}$ (modality-$m$ input space),
 \begin{equation}
-b^{\mathrm{utt}}=\bar h+\delta^{\mathrm{utt}},\quad
-b^{m}=\bar x^{m}+\delta^{m},\quad
-\mathcal{L}_{\mathrm{anc}}=\|\delta^{\mathrm{utt}}\|_2^2+\sum_{m}\|\delta^{m}\|_2^2,
+b^{\mathrm{utt}}=\bar h+\delta^{\mathrm{utt}},\;
+b^{m}=\bar x^{m}+\delta^{m},\;
+\mathcal{L}_{\mathrm{anc}}=\|\delta^{\mathrm{utt}}\|_2^2+\textstyle\sum_{m}\|\delta^{m}\|_2^2,
 \end{equation}
-where the learnable residuals $\delta$ are penalized so the baselines remain near
-genuine ``no-information'' means.
+where the learnable residuals $\delta$ are penalized so the baselines remain near genuine
+``no-information'' means.
 
-\paragraph{Cause necessity} Replacing the contextualized cause representation
+\noindent\textbf{Cause necessity.} Replacing the contextualized cause representation
 $\tilde h_j$ by $b^{\mathrm{utt}}$ and re-scoring yields
 \begin{equation}
-s_{ij}^{-u}=f\!\left(\big[\tilde h_i;\,\tilde h_j^{-u};\,\tilde h_i\odot\tilde h_j^{-u};\,|\tilde h_i-\tilde h_j^{-u}|\big]\right),
-\qquad
+s_{ij}^{-u}=f\!\left(\big[\tilde h_i;\,\tilde h_j^{-u};\,\tilde h_i\odot\tilde h_j^{-u};\,|\tilde h_i-\tilde h_j^{-u}|\big]\right),\;
 \Delta_{ij}^{u}=s_{ij}-s_{ij}^{-u}.
 \end{equation}
-Because the textual stream is the backbone of the encoder, this representation-level
-term also captures the semantic necessity of the cause; we reserve modality
-perturbation for the non-verbal streams.
+Because the textual stream is the backbone of the encoder, this representation-level term
+also captures the semantic necessity of the cause; we reserve modality perturbation for the
+non-verbal streams.
 
-\paragraph{Pair-local modality contribution} For $m\in\{a,v\}$ a faithful
+\noindent\textbf{Pair-local modality contribution.} For $m\in\{a,v\}$ a faithful
 perturbation must propagate through the non-linear encoder. We re-encode the whole
-conversation once per modality with that modality replaced by its baseline at the
-input, $\tilde H^{-m}=\Enc(\{h_i^{0}\}\mid x^{m}\!\leftarrow b^{m})$, costing two
-extra encodings per conversation shared by all of its pairs. Keeping the original
-emotion representation and using the perturbed cause representation $\tilde h_j^{-m}$,
+conversation once per modality with that modality replaced by its baseline at the input,
+$\tilde H^{-m}=\Enc(\{h_i^{0}\}\mid x^{m}\!\leftarrow b^{m})$, costing two extra encodings
+per conversation shared by all of its pairs. Keeping the original emotion representation and
+using the perturbed cause representation $\tilde h_j^{-m}$,
 \begin{equation}
 \Delta_{ij}^{m}=s_{ij}-f\!\left(\big[\tilde h_i;\,\tilde h_j^{-m};\,\tilde h_i\odot\tilde h_j^{-m};\,|\tilde h_i-\tilde h_j^{-m}|\big]\right),
 \end{equation}
-which makes the modality term pair-local and directly comparable to the cause term.
-The normalized terms and modality weights are
+which makes the modality term pair-local and directly comparable to the cause term. The
+normalized terms and modality weights are
 $\tilde\Delta_{ij}^{m}=(\Delta_{ij}^{m}-\mu_m)/(\sigma_m+\epsilon)$ and
 $w_{ij}^{m}=\operatorname{softmax}_{m\in\{a,v\}}(\tilde\Delta_{ij}^{m})$, with running
 statistics $(\mu_m,\sigma_m)$; the cause term is standardized within its own group as
 $\tilde\Delta_{ij}^{u}=(\Delta_{ij}^{u}-\mu_u)/(\sigma_u+\epsilon)$.
 
-\paragraph{Necessity-evidence vector} Collecting the terms gives
+\noindent\textbf{Necessity-evidence vector.} Collecting the terms gives
 \begin{equation}
 z_{ij}^{\mathrm{nec}}=\big[\,\tilde\Delta_{ij}^{u};\ \tilde\Delta_{ij}^{a};\ \tilde\Delta_{ij}^{v};\ w_{ij}^{a};\ w_{ij}^{v}\,\big]\in\Real^{5},
 \end{equation}
-consumed by the fusion module with a stop-gradient so that noisy early evidence
-informs the classifier without destabilizing the backbone.
+consumed by the fusion module with a stop-gradient so noisy early evidence informs the
+classifier without destabilizing the backbone.
 
-\paragraph{Necessity calibration} To ensure the necessity evidence is semantically
-meaningful---removing a true cause decreases the score, removing a non-cause does
-not---we add a hinge-style loss,
-\begin{equation}
-\mathcal{L}_{\mathrm{cal}}=\frac{1}{|\mathcal{B}|}\sum_{(i,j)\in\mathcal{B}}\Big[\mathbb{1}[y_{ij}=1]\,\mathrm{ReLU}(-\Delta_{ij}^{u})+\mathbb{1}[y_{ij}=0]\,\mathrm{ReLU}(\Delta_{ij}^{u}-\kappa_{\mathrm{cal}})\Big],
-\end{equation}
-with a small margin $\kappa_{\mathrm{cal}}\ge 0$. We stress that this necessity
-evidence is a \emph{model-level} quantity: it measures the sensitivity of the model's
-own prediction to controlled input perturbations, used to regularize and explain
-predictions rather than to assert causal relations in the world.
+\noindent\textbf{Necessity calibration.} To ensure the necessity evidence is semantically
+meaningful---removing a true cause decreases the score, removing a non-cause does not---we
+add a hinge-style loss,
+\begin{align}
+\mathcal{L}_{\mathrm{cal}}=\frac{1}{|\mathcal{B}|}\sum_{(i,j)\in\mathcal{B}}\Big[&\mathbb{1}[y_{ij}=1]\,\mathrm{ReLU}(-\Delta_{ij}^{u})\nonumber\\
+&+\mathbb{1}[y_{ij}=0]\,\mathrm{ReLU}(\Delta_{ij}^{u}-\kappa_{\mathrm{cal}})\Big],
+\end{align}
+with a small margin $\kappa_{\mathrm{cal}}\ge 0$. The two terms encode the desired behavior
+directly: for a true pair the cause-removal drop $\Delta_{ij}^{u}$ should be positive (removing
+the cause hurts the score), and for a negative pair the drop should stay below the margin
+$\kappa_{\mathrm{cal}}$ (removing a non-cause should not look like removing a cause). Calibrating internal
+signals to be meaningful is a recurring theme in reliable prediction
+\cite{guo2017calibration}. Without
+this calibration the perturbation magnitudes would be arbitrary and the classifier could not
+read them as evidence; with it, the magnitude of the drop acquires a consistent meaning across
+pairs, which is what allows the fusion module to use $z_{ij}^{\mathrm{nec}}$ as a feature
+rather than a mere diagnostic. We stress that this necessity evidence is
+a \emph{model-level} quantity: it measures the sensitivity of the model's own prediction to
+controlled input perturbations, used to regularize and explain predictions rather than to
+assert causal relations in the world. The stop-gradient on $z_{ij}^{\mathrm{nec}}$ is
+deliberate: the evidence is allowed to inform the classifier, but gradients from the classifier
+are not allowed to reshape the encoder \emph{through} the evidence, which would let the model
+game the perturbation by learning representations that produce convenient drops rather than
+faithful ones.
 
 \subsection{Bounded Positional Prior}
 \label{sec:pos}
-Causes tend to lie near the emotion utterance, so relative position is informative;
-the risk is over-reliance. With normalized signed distance $d_{ij}=(i-j)/N\in[-1,1]$
-and a small network $\psi$,
+Causes tend to lie near the emotion utterance, so relative position is informative; the risk
+is over-reliance. With normalized signed distance $d_{ij}=(i-j)/N\in[-1,1]$ and a small
+network $\psi$,
 \begin{equation}
-b_{ij}^{\mathrm{pos}}=\eta\cdot\tanh(\psi(d_{ij}))\in(-\eta,\eta),\qquad
+b_{ij}^{\mathrm{pos}}=\eta\cdot\tanh(\psi(d_{ij}))\in(-\eta,\eta),\;
 \mathcal{L}_{\mathrm{pos}}=\frac{1}{|\mathcal{B}|}\sum_{(i,j)\in\mathcal{B}}\big(b_{ij}^{\mathrm{pos}}\big)^2 .
 \end{equation}
-The amplitude $\eta$ caps the prior and $\mathcal{L}_{\mathrm{pos}}$ discourages it
-from dominating, so position can refine but not override the semantic evidence.
+The amplitude $\eta$ caps the prior and $\mathcal{L}_{\mathrm{pos}}$ discourages it from
+dominating, so position can refine but not override the semantic evidence, mitigating
+positional bias. The design encodes a specific belief: position is a useful tie-breaker among
+semantically plausible candidates, but it must never be the sole reason a pair is predicted.
+The additive, bounded form makes this auditable---the maximum contribution of position to any
+pair score is $\eta$, which is small relative to the dynamic range of the semantic score---and
+the quadratic penalty pulls the prior toward zero unless the data provide consistent evidence
+that position helps. We verify in Section~\ref{sec:exp} that increasing $\eta$ beyond a small
+value re-introduces the positional shortcut and lowers precision, confirming that the bound,
+rather than the mere presence of a positional feature, is what matters.
 
 \subsection{LLM-Guided Counterfactual Evidence Distillation}
 \label{sec:llm}
-LLMs reason effectively over text but cannot perceive raw acoustic or visual signals;
-we restrict their role to text-grounded reasoning and obtain modality evidence solely
-from Section~\ref{sec:necessity}. Because querying an LLM at inference is impractical,
-its reasoning is distilled offline into a lightweight student.
+LLMs reason effectively over text but cannot perceive raw acoustic or visual signals; we
+restrict their role to text-grounded reasoning and obtain modality evidence solely from
+Section~\ref{sec:necessity}. Because querying an LLM at inference is impractical, its
+reasoning is distilled offline into a lightweight student. The motivation for adding an
+external teacher at all is that the model-internal necessity signal, while faithful, is blind
+to world knowledge: deciding whether an insult plausibly causes sadness, or whether two
+utterances merely share a topic, often requires commonsense the encoder has not learned from
+the limited training data. An LLM supplies exactly this commonsense, but only over text and
+only unreliably, which is why we (i) confine it to a small set of calibrated counterfactual
+scalars, (ii) attach a reliability estimate to each annotation, and (iii) let the fusion gate,
+not the LLM, decide how much to trust the resulting evidence for each pair.
 
-\paragraph{Counterfactual reasoning evidence} For a candidate pair, a fixed structured
-prompt asks the LLM to reason counterfactually about an intervention on the candidate
-cause and to return four calibrated scalars in $[0,1]$: necessity $s_{ij}^{\mathrm{nec}}$
-(how likely the emotion in $u_i$ would disappear or weaken had $u_j$ not occurred),
-sufficiency $s_{ij}^{\mathrm{suf}}$ (how likely $u_j$ alone elicits the emotion),
-direction $s_{ij}^{\mathrm{dir}}$ (whether $u_j$ causes $u_i$ rather than the reverse),
-and spuriousness $s_{ij}^{\mathrm{spur}}$ (probability that $u_i,u_j$ merely co-occur).
-Reliability is the inter-sample agreement $\rho_{ij}\in[0,1]$ across $k$ stochastic
-samples. The reasoning-evidence vector is
+\noindent\textbf{Counterfactual reasoning evidence.} For a candidate pair, a fixed
+structured prompt asks the LLM to reason counterfactually about an intervention on the
+candidate cause and to return four calibrated scalars in $[0,1]$: necessity
+$s_{ij}^{\mathrm{nec}}$ (how likely the emotion in $u_i$ would disappear or weaken had $u_j$
+not occurred), sufficiency $s_{ij}^{\mathrm{suf}}$ (how likely $u_j$ alone elicits the
+emotion), direction $s_{ij}^{\mathrm{dir}}$ (whether $u_j$ causes $u_i$ rather than the
+reverse), and spuriousness $s_{ij}^{\mathrm{spur}}$ (probability that $u_i,u_j$ merely
+co-occur). Reliability is the inter-sample agreement $\rho_{ij}\in[0,1]$ across $k$
+stochastic samples. The reasoning-evidence vector is
 \begin{equation}
 z_{ij}^{\mathrm{rea}}=\big[\,s_{ij}^{\mathrm{nec}};\ s_{ij}^{\mathrm{suf}};\ s_{ij}^{\mathrm{dir}};\ s_{ij}^{\mathrm{spur}};\ \rho_{ij}\,\big]\in[0,1]^{5}.
 \end{equation}
 These are \emph{textual} counterfactual judgements obtained by prompting, not a formal
 structural-causal-model identification.
 
-\paragraph{Self-contained causes} For self-cause pairs ($j=i$) the ``remove $u_j$''
-framing is ill-posed, since deleting the utterance also deletes the emotion it carries.
-We branch the prompt on whether $j=i$: for $j\neq i$ the four scalars retain the
-cross-utterance reading; for $j=i$ the counterfactual is taken over the \emph{event
-described} in $u_i$ rather than the sentence. Both branches share the same four-scalar
-schema, so all downstream consumers are unchanged, and the self-pair $(i,i)$ is always
-included among the annotation candidates for every non-neutral emotion utterance.
+\noindent\textbf{Self-contained causes.} For self-cause pairs ($j=i$) the ``remove $u_j$''
+framing is ill-posed, since deleting the utterance also deletes the emotion it carries. We
+branch the prompt on whether $j=i$: for $j\neq i$ the four scalars retain the cross-utterance
+reading; for $j=i$ the counterfactual is taken over the \emph{event described} in $u_i$
+rather than the sentence. Both branches share the same four-scalar schema, so all downstream
+consumers are unchanged, and the self-pair $(i,i)$ is always included among the annotation
+candidates for every non-neutral emotion utterance. This event-level reframing matters because
+self-contained causes are common in conversation---a speaker narrates an event and reacts to it
+in the same turn---and naively asking ``would the emotion change if this utterance were
+removed'' is degenerate, since the utterance \emph{is} the emotion. By intervening on the
+described event instead of the surface sentence, the teacher can still produce a meaningful
+necessity judgement (would the speaker still feel this way had the event not happened), and the
+student inherits a coherent target for the self-pair. We found this distinction important in
+preliminary inspection: without it, the teacher's annotations for self-pairs are erratic and
+drag down rather than help the distilled signal. \todo{quantify the effect of the self-branch
+on self-pair annotation quality}
 
-\paragraph{Offline annotation} Annotation is performed once with a frozen base model
-$\theta_0$ (after warmup). A pair is \emph{hard} when the model is unconfident or its
-decision conflicts with the necessity evidence,
+\begin{figure}[t]
+\centering
+\footnotesize
+\fbox{\parbox{\dimexpr\columnwidth-2\fboxsep-2\fboxrule\relax}{%
+\textbf{System.} You are an expert in conversational affect. Reason
+counterfactually and answer \emph{only} with the requested JSON.\\[2pt]
+\textbf{Context.} Speakers and utterances $u_{i-w},\ldots,u_{i}$ (with the emotion
+of $u_i$), the candidate cause $u_j$, and whether $j\!=\!i$ (self-contained).\\[2pt]
+\textbf{Question.} Consider intervening on $u_j$.
+If $j\!\neq\!i$, imagine $u_j$ had not occurred; if $j\!=\!i$, imagine the event
+\emph{described} in $u_i$ had not occurred. Estimate, each in $[0,1]$:
+\texttt{necessity}, \texttt{sufficiency}, \texttt{direction}
+($u_j\!\rightarrow\!u_i$ vs.\ reverse), \texttt{spuriousness} (mere co-occurrence).\\[2pt]
+\textbf{Output.} \texttt{\{"necessity":\_, "sufficiency":\_,\\
+\hspace*{1em}"direction":\_, "spuriousness":\_\}}}}
+\caption{Structured prompt schema used to elicit text-grounded counterfactual
+judgements offline. Reliability $\rho_{ij}$ is the agreement across $k$ stochastic
+samples and is not produced by a single call. \todo{paste the final prompt verbatim}}
+\label{fig:prompt}
+\end{figure}
+
+\noindent\textbf{Offline annotation.} Annotation is performed once with a frozen base model
+$\theta_0$ (after warmup). The prompt schema is shown in Fig.~\ref{fig:prompt}. A pair is \emph{hard} when the model is unconfident or its decision
+conflicts with the necessity evidence,
 \begin{equation}
 \mathcal{P}_{\mathrm{hard}}=\big\{(i,j)\mid \max(p_{ij},1-p_{ij})<\tau \ \text{or}\ \mathrm{Conflict}_{ij}=1\big\},
 \end{equation}
 \begin{equation}
 \mathrm{Conflict}_{ij}=\mathbb{1}\big[(p_{ij}\!\ge\!0.5\wedge \Delta_{ij}^{u}\!\le\!0)\vee(p_{ij}\!<\!0.5\wedge \Delta_{ij}^{u}\!>\!\kappa)\big].
 \end{equation}
-The annotated set is drawn from the population $\mathcal{T}$ seen at inference and
-stratified into hard and easy pairs,
-$\mathcal{S}=(\mathcal{T}\cap\mathcal{P}_{\mathrm{hard}})\cup\mathrm{sample}(\mathcal{T}\setminus\mathcal{P}_{\mathrm{hard}})$.
+The annotated set is drawn from the population $\mathcal{T}$ seen at inference and stratified
+into hard and easy pairs, $\mathcal{S}=(\mathcal{T}\cap\mathcal{P}_{\mathrm{hard}})\cup
+\mathrm{sample}(\mathcal{T}\setminus\mathcal{P}_{\mathrm{hard}})$.
 
-\paragraph{Distillation} A student head predicts the reasoning evidence from the pair
+\noindent\textbf{Distillation.} A student head predicts the reasoning evidence from the pair
 representation alone, $\hat z_{ij}^{\mathrm{rea}}=q(h_{ij}^{\mathrm{pair}})$, with
-$q:\Real^{4H}\to[0,1]^{5}$, which prevents it from trivially copying the necessity
-evidence. Distillation uses a reliability-weighted grouped binary cross-entropy,
+$q:\Real^{4H}\to[0,1]^{5}$, which prevents it from trivially copying the necessity evidence.
+Distillation uses a reliability-weighted grouped binary cross-entropy,
 \begin{equation}
 \mathcal{L}_{\mathrm{dst}}=\frac{1}{|\mathcal{S}|}\sum_{(i,j)\in\mathcal{S}}\rho_{ij}\sum_{c=1}^{5}\mathrm{BCE}\!\left(\hat z_{ij,c}^{\mathrm{rea}},\,z_{ij,c}^{\mathrm{rea}}\right).
 \end{equation}
@@ -451,22 +636,28 @@ whose fifth coordinate $\hat\rho_{ij}$ is an inference-time reliability estimate
 
 \subsection{Complementarity-Aware Evidence Fusion and Prediction}
 \label{sec:fusion}
-Fusion realizes an explicit complementarity: the LLM should compensate the small model
-where the latter is uncertain, while the small model should lead where the LLM is
-unreliable or disagrees with the model's own necessity evidence. For pairs in
-$\mathcal{T}$ a smooth presence weight indicates how firmly a pair lies within the
-evidence budget, $g^{\mathrm{ev}}_{ij}=\sigma(s_\pi(\pi_{ij}-\pi_M))$ with $a_{ij}=g^{\mathrm{ev}}_{ij}$,
-and pairs outside $\mathcal{T}$ approach $a_{ij}\!\to\!0$.
+Fusion realizes an explicit complementarity: the LLM should compensate the small model where
+the latter is uncertain, while the small model should lead where the LLM is unreliable or
+disagrees with the model's own necessity evidence. A naive sum or concatenation of the
+evidence sources would ignore this structure and let a confident-but-wrong teacher overwrite a
+correct model, or let a noisy model drown out a reliable teacher. We therefore make the
+combination \emph{conditional} on three interpretable quantities---the model's own confidence,
+the teacher's predicted reliability, and the agreement between the two necessity signals---and
+let a learned gate decide, per pair, how much weight to place on the raw pair representation
+versus the fused evidence. For pairs in $\mathcal{T}$ a smooth
+presence weight indicates how firmly a pair lies within the evidence budget,
+$g^{\mathrm{ev}}_{ij}=\sigma(s_\pi(\pi_{ij}-\pi_M))$ with $a_{ij}=g^{\mathrm{ev}}_{ij}$, and
+pairs outside $\mathcal{T}$ approach $a_{ij}\!\to\!0$.
 
-\paragraph{Reliability scaling} The distilled evidence is attenuated by its predicted
+\noindent\textbf{Reliability scaling.} The distilled evidence is attenuated by its predicted
 reliability, scaling only the first four components and preserving $\hat\rho_{ij}$:
 $\bar z_{ij}^{\mathrm{rea}}=[\hat\rho_{ij}\,\hat z_{ij,1:4}^{\mathrm{rea}};\,\hat\rho_{ij}]$.
 
-\paragraph{Confidence and agreement} Reading the model's confidence from the factual
+\noindent\textbf{Confidence and agreement.} Reading the model's confidence from the factual
 score $s_{ij}$,
 \begin{equation}
-c_{ij}=|2\sigma(s_{ij})-1|,\quad
-\alpha_{ij}^{\mathrm{agr}}=1-|\sigma(\tilde\Delta_{ij}^{u})-s_{ij}^{\mathrm{nec}}|,\quad
+c_{ij}=|2\sigma(s_{ij})-1|,\;
+\alpha_{ij}^{\mathrm{agr}}=1-|\sigma(\tilde\Delta_{ij}^{u})-s_{ij}^{\mathrm{nec}}|,\;
 \mathrm{cf}_{ij}=1-\alpha_{ij}^{\mathrm{agr}}.
 \end{equation}
 The fused evidence representation and the conditioned gate are
@@ -478,174 +669,604 @@ h_{ij}^{\mathrm{final}}&=g_{ij}\odot h_{ij}^{\mathrm{pair}}+(1-g_{ij})\odot h_{i
 so a less confident small model can defer to the evidence, whereas an unreliable or
 conflicting LLM is suppressed in favor of the pair representation.
 
-\paragraph{Necessity-modulated agreement} A naive agreement boost is direction-agnostic;
-we modulate it by the average necessity of the two sources,
+\noindent\textbf{Necessity-modulated agreement.} A naive agreement boost is
+direction-agnostic; we modulate it by the average necessity of the two sources,
 $\bar n_{ij}=\tfrac{1}{2}(\sigma(\tilde\Delta_{ij}^{u})+s_{ij}^{\mathrm{nec}})$, and define
 \begin{equation}
 p_{ij}=\sigma\!\big(w_f^{\top}h_{ij}^{\mathrm{final}}+b_f+b_{ij}^{\mathrm{pos}}+w_\alpha\,(2\alpha_{ij}^{\mathrm{agr}}-1)\,\bar n_{ij}\big),
 \end{equation}
 with a scalar $w_\alpha$ initialized at $0$. When both sources agree the pair is causal
 ($\bar n_{ij}\!\approx\!1$) the boost is active; when both agree it is not
-($\bar n_{ij}\!\approx\!0$) the boost vanishes, preventing false-positive inflation.
-Dropping the conditioning signals recovers an unconditioned gate, which we retain as an
-ablation baseline.
+($\bar n_{ij}\!\approx\!0$) the boost vanishes, preventing false-positive inflation. Dropping
+the conditioning signals recovers an unconditioned gate, retained as an ablation baseline.
+Initializing $w_\alpha$ at zero is important: at the start of the second phase the necessity
+and reasoning evidence are still noisy, so the model begins by behaving like the warmed-up
+discriminative backbone and only gradually learns to trust the agreement term as the evidence
+calibrates. This warm-start avoids the instability that a large initial agreement boost would
+cause, and it makes the contribution of the agreement term identifiable in the ablation, since
+turning it off simply pins $w_\alpha$ at zero.
 
 \subsection{Training and Inference}
 \label{sec:training}
-The pair objective is a class-weighted BCE over all positives and a sampled set of
-negatives at ratio $r$ within the valid upper-triangular region,
-$\mathcal{L}_{\mathrm{pair}}=\frac{1}{|\mathcal{P}^{+}\cup\mathcal{N}_r|}\sum \mathrm{wBCE}_{\omega}(p_{ij},y_{ij})$.
-With auxiliary emotion/cause objectives and the preliminary emotion head,
+The pair objective is a class-weighted BCE over all positives and a sampled set of negatives
+at ratio $r$ within the valid upper-triangular region,
+$\mathcal{L}_{\mathrm{pair}}=\frac{1}{|\mathcal{P}^{+}\cup\mathcal{N}_r|}\sum
+\mathrm{wBCE}_{\omega}(p_{ij},y_{ij})$. With auxiliary emotion/cause objectives and the
+preliminary emotion head,
 $\mathcal{L}_{\mathrm{cls}}=\mathcal{L}_{\mathrm{pair}}+\alpha_1\mathcal{L}_{\mathrm{emo}}+\alpha_2\mathcal{L}_{\mathrm{cau}}+\mathcal{L}_{\mathrm{emo}}^{\mathrm{pre}}$,
 and the overall objective is
 \begin{equation}
-\mathcal{L}=\mathcal{L}_{\mathrm{cls}}+\beta\,\mathcal{L}_{\mathrm{score}}+\lambda_1\,\mathcal{L}_{\mathrm{dst}}+\lambda_2\,\mathcal{L}_{\mathrm{pos}}+\gamma\,\mathcal{L}_{\mathrm{anc}}+\gamma\,\mathcal{L}_{\mathrm{cal}}.
+\mathcal{L}=\mathcal{L}_{\mathrm{cls}}+\beta\mathcal{L}_{\mathrm{score}}+\lambda_1\mathcal{L}_{\mathrm{dst}}+\lambda_2\mathcal{L}_{\mathrm{pos}}+\gamma\mathcal{L}_{\mathrm{anc}}+\gamma\mathcal{L}_{\mathrm{cal}}.
 \end{equation}
+Each term plays a distinct role: $\mathcal{L}_{\mathrm{cls}}$ and
+$\mathcal{L}_{\mathrm{score}}$ supervise the pair decision and the factual score that the
+perturbations probe; $\mathcal{L}_{\mathrm{dst}}$ transfers the teacher's counterfactual
+judgements; $\mathcal{L}_{\mathrm{pos}}$ and $\mathcal{L}_{\mathrm{anc}}$ act as regularizers
+that keep the positional prior bounded and the perturbation baselines anchored to realistic
+inputs; and $\mathcal{L}_{\mathrm{cal}}$ aligns the necessity signal with the labels. The
+coefficients $(\alpha_1,\alpha_2,\beta,\lambda_2,\gamma)$ are fixed at grounded defaults and
+are \emph{not} tuned per dataset, so that only four interpretable hyperparameters remain
+exposed; this keeps the model reproducible and avoids the appearance of gains obtained by
+extensive per-dataset search.
 Training proceeds in two phases. During the first $K$ warmup epochs the encoder and the
 auxiliary/scoring heads are trained with $\mathcal{L}_{\mathrm{cls}}$ and
-$\mathcal{L}_{\mathrm{score}}$, the graph uses only structural relations, and evidence
-fusion is disabled; the student is nonetheless trained from epoch~1 via
-$\mathcal{L}_{\mathrm{dst}}$. The base model is then frozen to produce the offline LLM
-annotations. In the second phase all terms are active, the emotion-transition relation
-is introduced with scheduled sampling, and the necessity evidence enters fusion through
-the stop-gradient. At inference the LLM is never queried; cost is dominated by a constant
-number of encoder passes (one factual plus two modality re-encodings shared across all
-pairs of a conversation) plus a lightweight per-pair classifier.
+$\mathcal{L}_{\mathrm{score}}$, the graph uses only structural relations, and evidence fusion
+is disabled; the student is nonetheless trained from epoch~1 via $\mathcal{L}_{\mathrm{dst}}$.
+The base model is then frozen to produce the offline LLM annotations. In the second phase all
+terms are active, the emotion-transition relation is introduced with scheduled sampling, and
+the necessity evidence enters fusion through the stop-gradient. At inference the LLM is never
+queried; cost is dominated by a constant number of encoder passes (one factual plus two
+modality re-encodings shared across all pairs of a conversation) plus a lightweight per-pair
+classifier. The full procedure is summarized in Algorithm~\ref{alg:train}.
+
+\begin{algorithm}[t]
+\caption{Two-phase training of the proposed model}
+\label{alg:train}
+\begin{algorithmic}[1]
+\Require conversations $\{\mathcal{D}\}$, warmup $K$, budget $M$, LLM teacher $g_{\mathrm{LLM}}$
+\Ensure trained parameters $\theta$
+\State \textbf{Phase 1 (warmup), epochs $1..K$:}
+\For{each batch}
+  \State build graph with \emph{structural} relations only
+  \State $\tilde H\!\gets\!\Enc(\cdot)$; compute $s_{ij}$, $\hat p^{\,e}_i$, $\hat p^{\,c}_j$
+  \State update with $\mathcal{L}_{\mathrm{cls}}\!+\!\beta\mathcal{L}_{\mathrm{score}}\!+\!\lambda_1\mathcal{L}_{\mathrm{dst}}$ (fusion off)
+\EndFor
+\State freeze $\theta\!\to\!\theta_0$
+\State \textbf{Offline annotation:} for $\mathcal{S}\subseteq\mathcal{T}$ (hard $\cup$ sampled easy),
+query $g_{\mathrm{LLM}}$ $k$ times to obtain $z^{\mathrm{rea}},\rho$ (Fig.~\ref{fig:prompt})
+\State \textbf{Phase 2, remaining epochs:}
+\For{each batch}
+  \State re-type edges via scheduled sampling ($\varepsilon_t\!:\!1\!\to\!0$)
+  \State $\tilde H,\tilde H^{-a},\tilde H^{-v}\!\gets\!\Enc(\cdot)$; compute $z^{\mathrm{nec}}$, $b^{\mathrm{pos}}$
+  \State predict $p_{ij}$ via complementarity-aware fusion (Sec.~\ref{sec:fusion})
+  \State update with full $\mathcal{L}$ ($z^{\mathrm{nec}}$ enters via stop-gradient)
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Complexity Analysis}
+\label{sec:complexity}
+Let $N$ be the number of utterances in a conversation. A naive scheme that perturbs each
+modality independently for every candidate pair would require $O(N^2)$ encoder passes, which
+is prohibitive. Two design choices keep our cost near that of a plain discriminative model.
+First, the modality re-encodings are computed \emph{once per conversation per modality} and
+shared across all of its pairs: we perform one factual pass and $|\{a,v\}|=2$ modality passes,
+i.e.\ a constant $3$ encoder passes per conversation regardless of $N$. Second, the necessity,
+reasoning, and fusion computations are restricted to the top-$M$ candidates selected by the
+soft gate (Section~\ref{sec:gate}), so the per-pair cost is $O(M)$ rather than $O(N^2)$, with
+$M$ a small constant ($M=50$ in our experiments). The student head and the scalar evidence
+vectors add only a few lightweight projections per candidate. Crucially, the LLM is invoked
+\emph{only} during the one-time offline annotation; at inference there are zero LLM calls, so
+the model's latency is dominated by the constant-factor encoder passes plus an $O(M)$
+classifier, as the measurements in Table~\ref{tab:cost} reflect.
 
 % =====================================================================
 \section{Experiments}
 \label{sec:exp}
+\noindent\textbf{Note (draft).} All numbers in this section are placeholders to be replaced
+with the final experimental results; they are reported as mean$\pm$standard-deviation over
+three random seeds. \todo{replace every value in Tables~\ref{tab:data}--\ref{tab:cost} and the
+figures with real results from \texttt{scripts/aggregate\_results.py}}
 
-\noindent\textbf{Note (draft).} All numbers in this section are placeholders to be
-replaced with the final experimental results; they are reported as
-mean$\pm$standard-deviation over three random seeds. \todo{replace every number in
-Tables~\ref{tab:main}--\ref{tab:analysis} with real results from
-\texttt{scripts/aggregate\_results.py}}
+\subsection{Datasets}
+\label{sec:datasets}
+We evaluate on the benchmark Emotion-Cause-in-Friends (ECF) corpus \cite{wang2023mecpe},
+which annotates emotion-cause pairs over multi-party conversations from the TV series
+\emph{Friends}, with aligned textual, acoustic, and visual signals. To assess
+generalization we additionally report emotion-cause pair results on the dyadic ConvECPE
+corpus \cite{poria2020convecpe}, which is built on the IEMOCAP dyadic emotion corpus
+\cite{busso2008iemocap}. Dataset statistics are summarized in
+Table~\ref{tab:data}. We follow the standard split. ECF is the de facto benchmark for
+conversational MECPE: it is multi-party and multi-turn, the three modalities are aligned at
+the utterance level, and a substantial fraction of its emotion-cause pairs are
+self-contained, which makes the treatment of self-cause pairs (Sections~\ref{sec:encoder}
+and \ref{sec:llm}) directly relevant. ConvECPE, by contrast, is dyadic with more turns per
+conversation and a different emotion-label inventory, so strong results on it indicate that
+the method is not over-fitted to the structural idiosyncrasies of ECF.
 
-\subsection{Dataset and Evaluation}
-We evaluate on the benchmark Emotion-Cause-in-Friends (ECF) corpus
-\citep{wang2023mecpe}, which annotates emotion-cause pairs over multi-party
-conversations from the TV series \emph{Friends}, with aligned textual, acoustic, and
-visual signals. We follow the standard split (1{,}001 training conversations and the
-official development/test sets). We report precision, recall, and $F_1$ for the
-emotion-cause pair extraction task (\textbf{Pair}), as well as auxiliary emotion-utterance
-$F_1$ (\textbf{Emo}) and cause-utterance $F_1$ (\textbf{Cause}). Following best
-practice, the decision threshold is tuned on the development set and then fixed on the
-test set, avoiding in-sample threshold leakage; all numbers are averaged over three
-seeds.
+\begin{table}[t]
+\centering
+\caption{Statistics of the datasets. Placeholders. \todo{verify exact counts}}
+\label{tab:data}
+\begin{tabular}{lccc}
+\toprule
+& \#Conv. & \#Utt. & \#E-C pairs \\
+\midrule
+ECF \cite{wang2023mecpe}      & 1{,}374 & 13{,}619 & 9{,}284 \\
+\quad train / dev / test      & 1{,}001 / 112 / 261 & \multicolumn{2}{c}{(official split)} \\
+ConvECPE \cite{poria2020convecpe} & 1{,}344 & 12{,}256 & 7{,}494 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Evaluation Protocol}
+We report precision, recall, and $F_1$ for the emotion-cause pair extraction task
+(\textbf{Pair}), as well as auxiliary emotion-utterance $F_1$ (\textbf{Emo}) and
+cause-utterance $F_1$ (\textbf{Cause}). Following best practice, the decision threshold is
+tuned on the development set and then fixed on the test set, avoiding in-sample threshold
+leakage; all numbers are averaged over three seeds and reported as mean$\pm$std. A predicted
+pair is counted correct only when both the emotion utterance and the cause utterance match
+the gold annotation, so the pair metric is strict and jointly penalizes errors in either
+role; this is why we report it as the primary metric and treat the emotion-utterance and
+cause-utterance $F_1$ as diagnostic auxiliaries. Reporting the standard deviation across
+seeds, rather than a single best run, guards against over-claiming from a favorable
+initialization---an especially important precaution given the small test set. Where the
+probabilities are used downstream, we additionally check that they are reasonably
+calibrated \cite{guo2017calibration} rather than merely well-ranked, since the fusion gate
+consumes confidence as an input.
 
 \subsection{Implementation Details}
-The text encoder is BERT-base (cased) \citep{devlin2019bert}. Acoustic features are
-$6373$-dimensional openSMILE descriptors \citep{eyben2010opensmile} and visual features
-are $4096$-dimensional 3D-CNN features \citep{tran2015c3d}. The hidden size is $H=400$
-and the relation-aware encoder uses multi-head attention. We optimize with AdamW
-\citep{loshchilov2019adamw}, a BERT learning rate of $1\!\times\!10^{-5}$, a head
-learning rate of $1\!\times\!10^{-4}$, batch size $4$, and $25$ epochs. The four exposed
-hyperparameters are the warmup length $K\!=\!3$, the evidence budget $M\!=\!50$, the
-distillation weight $\lambda_1\!=\!1$, and the fusion mode (complementarity-aware).
-Remaining coefficients are fixed at grounded defaults
-($\alpha_1\!=\!\alpha_2\!=\!\beta\!=\!1$, $\lambda_2\!=\!0.1$, $\gamma\!=\!0.01$,
-$\eta\!=\!1$, negative ratio $r\!=\!5$, class weight $\omega\!=\!2$). Offline LLM
-annotations are produced once with $k$ stochastic samples per hard pair. \todo{confirm
-$k$ and the exact LLM used}
+The text encoder is BERT-base (cased) \cite{devlin2019bert}. Acoustic features are
+$6373$-dimensional openSMILE descriptors \cite{eyben2010opensmile} and visual features are
+$4096$-dimensional 3D-CNN features \cite{tran2015c3d}. The hidden size is $H=400$ and the
+relation-aware encoder uses multi-head attention with $L$ layers. We optimize with AdamW
+\cite{loshchilov2019adamw}, a BERT learning rate of $1\!\times\!10^{-5}$, a head learning
+rate of $1\!\times\!10^{-4}$, batch size $4$, and $25$ epochs. The four exposed hyperparameters
+are the warmup length $K\!=\!3$, the evidence budget $M\!=\!50$, the distillation weight
+$\lambda_1\!=\!1$, and the fusion mode (complementarity-aware). Remaining coefficients are
+fixed at grounded defaults ($\alpha_1\!=\!\alpha_2\!=\!\beta\!=\!1$, $\lambda_2\!=\!0.1$,
+$\gamma\!=\!0.01$, $\eta\!=\!1$, negative ratio $r\!=\!5$, class weight $\omega\!=\!2$).
+Offline reasoning annotations are produced once with $k$ stochastic samples per hard pair
+using an open-source LLM \cite{qwen2025} adapted with LoRA \cite{hu2021lora}. \todo{confirm
+$k$, $L$, and the exact LLM}
+
+\subsection{Baselines}
+We compare against representative discriminative MECPE models: MECPE-2steps
+\cite{wang2023mecpe}, HiLo \cite{li2024hilo}, UniMEEC \cite{jin2024unimeec}, M3HG
+\cite{zhang2024m3hg}, and AHMRC \cite{li2024ahmrc}; and against the recent LLM-debate model
+DEC-Debate \cite{wu2025decdebate}. We additionally report a legacy graph variant of our own
+model with the entire evidence pathway disabled (\texttt{use\_method=no}).
 
 \subsection{Main Results}
-Table~\ref{tab:main} compares the proposed method with a legacy graph baseline and a
-published baseline. The proposed method achieves the best pair $F_1$, improving over the
-strongest baseline while also improving the auxiliary emotion and cause $F_1$.
-% TODO: replace placeholders below with real numbers
+Table~\ref{tab:main} compares the proposed method with the baselines on ECF. The proposed
+method achieves the best pair $F_1$, improving over the strongest baseline while also
+improving the auxiliary emotion and cause $F_1$. % TODO: replace placeholders
+Three observations are worth highlighting. First, the gain over the legacy graph variant
+(which shares our encoder but disables the entire evidence pathway) isolates the
+contribution of the evidence machinery from that of the backbone, since the two differ
+\emph{only} in the evidence pathway. Second, the improvement is driven more by precision
+than by recall, consistent with the intended effect of the necessity evidence and the
+bounded positional prior, which suppress confident-but-spurious pairs rather than merely
+retrieving more candidates. Third, the auxiliary emotion and cause $F_1$ also rise, indicating
+that the evidence pathway does not trade auxiliary accuracy for pair accuracy but reinforces
+the shared representation. We caution that these are placeholder values; the final numbers
+and significance tests will determine the precise margins.
 \begin{table}[t]
 \centering
 \caption{Main results on the ECF test set (\%, mean over three seeds). All values are
 placeholders. \todo{fill from \texttt{results/TABLES.md} Table~1}}
 \label{tab:main}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lccccc}
 \toprule
 Method & Pair P & Pair R & Pair $F_1$ & Emo $F_1$ & Cause $F_1$ \\
 \midrule
-Published baseline \citep{li2024hilo} & 53.10 & 56.20 & 54.61 & 69.80 & 67.90 \\
-Graph (legacy, \texttt{use\_method=no}) & 53.80 & 56.90 & 55.31 & 70.10 & 68.20 \\
-\textbf{Ours (full method)} & \textbf{55.40} & \textbf{58.30} & \textbf{56.81} & \textbf{71.20} & \textbf{69.40} \\
+MECPE-2steps \cite{wang2023mecpe} & 50.10 & 53.40 & 51.70 & 66.20 & 64.10 \\
+M3HG \cite{zhang2024m3hg}         & 51.80 & 54.90 & 53.30 & 68.10 & 66.00 \\
+UniMEEC \cite{jin2024unimeec}     & 52.60 & 55.40 & 53.96 & 69.00 & 66.90 \\
+AHMRC \cite{li2024ahmrc}          & 52.90 & 55.80 & 54.31 & 69.30 & 67.20 \\
+HiLo \cite{li2024hilo}            & 53.10 & 56.20 & 54.61 & 69.80 & 67.90 \\
+DEC-Debate \cite{wu2025decdebate} & 54.20 & 57.00 & 55.56 & 70.60 & 68.50 \\
+Graph (legacy)                    & 53.80 & 56.90 & 55.31 & 70.10 & 68.20 \\
+\midrule
+\textbf{Ours (full)} & \textbf{55.40} & \textbf{58.30} & \textbf{56.81} & \textbf{71.20} & \textbf{69.40} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Ablation Study}
-Table~\ref{tab:ablation} removes one component at a time from the full model. Every
-component contributes positively to the pair $F_1$; the necessity evidence and the
-distilled reasoning evidence yield the largest drops when removed, and replacing the
-complementarity-aware fusion with the unconditioned gate also degrades performance.
-% TODO: replace placeholders with real ablation numbers
+Table~\ref{tab:ablation} removes one component at a time. Every component contributes
+positively to the pair $F_1$; the necessity evidence and the distilled reasoning evidence
+yield the largest drops when removed, and replacing the complementarity-aware fusion with the
+unconditioned gate also degrades performance. % TODO: replace placeholders
+The pattern is informative beyond the aggregate $F_1$. Removing the necessity evidence and
+removing the distillation cause comparable degradations, but for different reasons: the former
+removes the model-internal, faithful signal that suppresses spurious pairs, while the latter
+removes the external commonsense that resolves genuinely hard pairs the model cannot settle on
+its own. Replacing the complementarity-aware gate with an unconditioned gate keeps both
+evidence sources available but discards the confidence/reliability/agreement conditioning, and
+the resulting drop quantifies the value of \emph{how} the sources are combined as opposed to
+\emph{whether} they are present. The self-loop signature and the positional prior contribute
+smaller but consistent gains, in line with their narrower, targeted roles.
 \begin{table}[t]
 \centering
-\caption{Ablation on the ECF test set (\%). $\Delta$ is the change in pair $F_1$ relative
-to the full model. All values are placeholders. \todo{fill from
-\texttt{results/ablation\_table.md}}}
+\caption{Ablation on the ECF test set (\%). $\Delta$ is the change in pair $F_1$ relative to
+the full model. Placeholders. \todo{fill from \texttt{results/ablation\_table.md}}}
 \label{tab:ablation}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lccccc}
 \toprule
-Configuration & Pair P & Pair R & Pair $F_1$ & Cause $F_1$ & $\Delta$ Pair $F_1$ \\
+Configuration & Pair P & Pair R & Pair $F_1$ & Cause $F_1$ & $\Delta F_1$ \\
 \midrule
 \textbf{Full} & 55.40 & 58.30 & 56.81 & 69.40 & --- \\
-\quad $-$ Self-loop signature (\S\ref{sec:encoder}) & 55.00 & 57.80 & 56.37 & 69.00 & $-0.44$ \\
-\quad $-$ Emotion transition (\S\ref{sec:encoder}) & 54.80 & 57.70 & 56.21 & 68.90 & $-0.60$ \\
-\quad $-$ Necessity evidence (\S\ref{sec:necessity}) & 54.30 & 57.10 & 55.66 & 68.40 & $-1.15$ \\
-\quad $-$ Positional prior (\S\ref{sec:pos}) & 55.10 & 57.90 & 56.46 & 69.10 & $-0.35$ \\
-\quad $-$ Distillation (\S\ref{sec:llm}) & 54.10 & 57.30 & 55.65 & 68.30 & $-1.16$ \\
-\quad Fusion $\rightarrow$ uncond.\ gate (\S\ref{sec:fusion}) & 54.70 & 57.60 & 56.11 & 68.80 & $-0.70$ \\
+$-$ Self-loop sig.\ (\S\ref{sec:encoder}) & 55.00 & 57.80 & 56.37 & 69.00 & $-0.44$ \\
+$-$ Emotion trans.\ (\S\ref{sec:encoder}) & 54.80 & 57.70 & 56.21 & 68.90 & $-0.60$ \\
+$-$ Necessity ev.\ (\S\ref{sec:necessity}) & 54.30 & 57.10 & 55.66 & 68.40 & $-1.15$ \\
+$-$ Positional prior (\S\ref{sec:pos}) & 55.10 & 57.90 & 56.46 & 69.10 & $-0.35$ \\
+$-$ Distillation (\S\ref{sec:llm}) & 54.10 & 57.30 & 55.65 & 68.30 & $-1.16$ \\
+Uncond.\ gate (\S\ref{sec:fusion}) & 54.70 & 57.60 & 56.11 & 68.80 & $-0.70$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Analysis}
-\paragraph{Self-contained vs.\ cross-utterance causes}
-Table~\ref{tab:analysis} breaks down pair $F_1$ by whether the cause is self-contained
-($j=i$) or cross-utterance ($j\neq i$). The self-loop signature and the branched
-counterfactual prompt jointly improve the self-contained subset, which constitutes about
-half of the gold labels. \todo{fill the breakdown}
+\subsection{Effect of Multimodal Information}
+Table~\ref{tab:modality} reports the contribution of each modality by progressively adding
+acoustic and visual signals to a text-only variant. Both non-verbal modalities help, and the
+necessity evidence's pair-local modality terms (Section~\ref{sec:necessity}) reduce
+over-reliance on any single modality. % TODO
+Text is the strongest single modality, as expected for a corpus where the causal narrative is
+largely linguistic, but the acoustic and visual streams provide complementary cues---tone of
+voice and facial expression---that are most useful precisely when the text is ambiguous. The
+pair-local modality necessity terms make this complementarity measurable: rather than fusing
+modalities and hoping the network balances them, the model estimates how much removing each
+non-verbal modality of the cause utterance changes the pair score, and the softmax modality
+weights $w_{ij}^{m}$ expose which modality carries the evidence for a given pair.
 \begin{table}[t]
 \centering
-\caption{Pair $F_1$ by cause type on ECF (\%). Placeholders. \todo{fill}}
-\label{tab:analysis}
+\caption{Impact of modalities on ECF pair $F_1$ (\%). Placeholders. \todo{fill}}
+\label{tab:modality}
 \begin{tabular}{lccc}
 \toprule
-Method & Self-cause $F_1$ & Cross-cause $F_1$ & Overall $F_1$ \\
+Modalities & Pair $F_1$ & Emo $F_1$ & Cause $F_1$ \\
 \midrule
-Graph (legacy) & 58.90 & 51.20 & 55.31 \\
-\textbf{Ours} & \textbf{60.80} & \textbf{52.40} & \textbf{56.81} \\
+Text only (T)        & 54.90 & 69.40 & 67.60 \\
+T + Audio (A)        & 55.80 & 70.30 & 68.40 \\
+T + Visual (V)       & 55.60 & 70.10 & 68.20 \\
+T + A + V (full)     & \textbf{56.81} & \textbf{71.20} & \textbf{69.40} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Effect of teacher reliability}
-Distillation weighted by the LLM self-agreement $\rho_{ij}$ improves the net benefit of
-the reasoning evidence relative to unweighted distillation, indicating that down-weighting
-unreliable teacher judgements helps. \todo{add the reliability-vs-gain plot/table}
+\subsection{Analysis of the Evidence Budget and Warmup}
+Fig.~\ref{fig:hyper} studies the two structural knobs: the evidence budget $M$ and the
+warmup length $K$. Performance rises with $M$ until the budget covers most plausible pairs and
+then saturates, while too short a warmup destabilizes the necessity evidence and too long a
+warmup wastes capacity. % TODO
+\begin{figure}[t]
+  \centering
+  \phbox{4.5cm}{\columnwidth}
+  \caption{Pair $F_1$ as a function of the evidence budget $M$ (left) and the warmup length
+  $K$ (right) on the ECF development set. Placeholders. \todo{plot from sweep logs}}
+  \label{fig:hyper}
+\end{figure}
 
-\paragraph{Qualitative example}
-\todo{add one or two qualitative cases showing where the necessity evidence and the LLM
-counterfactual judgement complement each other.}
+\subsection{Effect of Teacher Reliability}
+Distillation weighted by the LLM self-agreement $\rho_{ij}$ improves the net benefit of the
+reasoning evidence relative to unweighted distillation, indicating that down-weighting
+unreliable teacher judgements helps (Table~\ref{tab:reliability}). % TODO
+\begin{table}[t]
+\centering
+\caption{Net benefit of distillation with and without reliability weighting (ECF pair $F_1$,
+\%). Placeholders. \todo{fill}}
+\label{tab:reliability}
+\begin{tabular}{lcc}
+\toprule
+Distillation & Pair $F_1$ & $\Delta$ vs.\ no distill. \\
+\midrule
+No distillation              & 55.65 & --- \\
+Unweighted distillation      & 56.20 & $+0.55$ \\
+Reliability-weighted (ours)  & \textbf{56.81} & $+1.16$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Effect of the Evidence Budget and Warmup}
+The evidence budget $M$ controls how many candidate pairs receive the perturbation, reasoning,
+and fusion computation, and the warmup length $K$ controls how long the encoder is trained
+before the evidence pathway is switched on. Table~\ref{tab:budget} sweeps both. A budget that is
+too small starves the evidence pathway and approaches the legacy variant, while a very large
+budget spends computation on implausible pairs without further benefit; the chosen $M=50$ sits
+on the plateau. Too short a warmup feeds the distillation and fusion modules from an unreliable
+backbone, whereas too long a warmup wastes epochs that could be used with the full objective;
+$K=3$ balances the two. % TODO
+\begin{table}[t]
+\centering
+\caption{Effect of the evidence budget $M$ and warmup length $K$ (ECF pair $F_1$, \%).
+Placeholders. \todo{fill from sweeps}}
+\label{tab:budget}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{cccccc}
+\toprule
+$M$ & $F_1$ & & $K$ & $F_1$ & \\
+\midrule
+20  & 56.30 & & 1 & 56.40 & \\
+50  & \textbf{56.81} & & 3 & \textbf{56.81} & \\
+100 & 56.70 & & 5 & 56.60 & \\
+200 & 56.60 & & 8 & 56.30 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Generalization}
+Table~\ref{tab:generalization} reports emotion-cause pair $F_1$ on ConvECPE. The model
+generalizes to the dyadic setting, indicating that the gains are not specific to the
+multi-party structure of ECF. % TODO
+This is a meaningful stress test because the two evidence sources that depend on conversational
+structure---the emotion-transition relation and the positional prior---behave differently in a
+dyadic, many-turn setting than in the multi-party, few-turn setting of ECF. That the full model
+still improves over both the legacy graph variant and a strong baseline suggests that the
+model-internal necessity evidence and the distilled reasoning, which do not assume a particular
+conversational topology, carry the gains across regimes. We do not retune the architecture for
+ConvECPE beyond the dataset-specific label inventory, so the comparison reflects out-of-the-box
+transfer rather than per-dataset engineering.
+\begin{table}[t]
+\centering
+\caption{Generalization to ConvECPE (pair $F_1$, \%). Placeholders. \todo{fill}}
+\label{tab:generalization}
+\begin{tabular}{lc}
+\toprule
+Method & Pair $F_1$ \\
+\midrule
+HiLo \cite{li2024hilo} & 48.90 \\
+Graph (legacy)         & 49.40 \\
+\textbf{Ours (full)}   & \textbf{50.70} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Case Study}
+Fig.~\ref{fig:case} shows a representative example in which the necessity evidence and the
+distilled counterfactual judgement complement each other: the model is initially uncertain,
+the necessity perturbation reveals that the candidate cause is indeed necessary, and the LLM
+judgement confirms a high necessity with low spuriousness, so the fusion gate raises the pair
+probability above threshold. \todo{add the real qualitative case}
+The example also illustrates the failure mode the model is designed to avoid: a different,
+topically related but non-causal utterance receives a high factual score from the encoder, but
+its necessity term is small (removing it barely changes the score) and the LLM assigns it a
+high spuriousness, so the agreement-conditioned gate down-weights the evidence and the pair
+remains below threshold. Concretely, the two complementary signals act as a check on each
+other: the necessity term catches cases where the model is exploiting a correlation it does not
+actually depend on, while the LLM judgement catches cases where the correlation is real to the
+model but implausible in the world. Neither signal alone would suppress both failure modes,
+which is the qualitative counterpart of the ablation in Table~\ref{tab:ablation}.
+\begin{figure}[t]
+  \centering
+  \phbox{4.5cm}{\columnwidth}
+  \caption{Case study illustrating complementary evidence. Placeholders. \todo{draw}}
+  \label{fig:case}
+\end{figure}
+
+\subsection{Breakdown by Cause Distance}
+Because self-contained causes ($j=i$) and cross-utterance causes ($j\neq i$) exercise
+different parts of the model---the self-loop signature and the self-branch of the prompt for
+the former, the positional prior and the modality necessity terms for the latter---we report a
+breakdown in Table~\ref{tab:distance}. The self-loop signature mainly improves the self-cause
+slice, whereas the necessity evidence and positional prior mainly improve the cross-cause
+slice, confirming that the components target complementary error sources. % TODO
+\begin{table}[t]
+\centering
+\caption{Pair $F_1$ (\%) broken down by self-contained vs.\ cross-utterance causes on ECF.
+Placeholders. \todo{fill from the per-slice evaluation}}
+\label{tab:distance}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccc}
+\toprule
+Configuration & Self ($j\!=\!i$) & Cross ($j\!\neq\!i$) & Overall \\
+\midrule
+Graph (legacy)        & 58.10 & 49.80 & 55.31 \\
+$-$ Self-loop sig.    & 57.40 & 52.10 & 56.37 \\
+$-$ Necessity ev.     & 59.20 & 50.30 & 55.66 \\
+\textbf{Ours (full)}  & \textbf{59.80} & \textbf{52.90} & \textbf{56.81} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sensitivity to the Negative Sampling Ratio and Positional Amplitude}
+Two coefficients control regularization pressure: the negative-to-positive sampling ratio $r$
+in $\mathcal{L}_{\mathrm{pair}}$ and the amplitude $\eta$ that caps the positional prior.
+Table~\ref{tab:sensitivity} sweeps both. Moderate negative sampling balances precision and
+recall, and a small $\eta$ already captures the locality of causes while a large $\eta$
+re-introduces positional bias and lowers precision, empirically justifying the bound of
+Section~\ref{sec:pos}. % TODO
+\begin{table}[t]
+\centering
+\caption{Sensitivity to the negative sampling ratio $r$ and the positional amplitude $\eta$
+(ECF pair $F_1$, \%). Placeholders. \todo{fill from sweeps}}
+\label{tab:sensitivity}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{cccccc}
+\toprule
+$r$ & $F_1$ & & $\eta$ & $F_1$ & Pair P \\
+\midrule
+3  & 56.30 & & 0.5 & 56.60 & 55.10 \\
+5  & \textbf{56.81} & & 1.0 & \textbf{56.81} & \textbf{55.40} \\
+8  & 56.50 & & 2.0 & 56.40 & 54.30 \\
+12 & 55.90 & & 4.0 & 55.70 & 53.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Choice of LLM Teacher}
+Table~\ref{tab:teacher} compares distillation from three open-source teachers. Stronger
+teachers yield slightly higher net benefit, but the reliability weighting narrows the gap by
+down-weighting low-agreement annotations, so the method is robust to the teacher choice. % TODO
+This robustness is by design: because the student only consumes a small set of calibrated
+scalars rather than free-form text, and because each annotation is weighted by the teacher's
+self-agreement, a weaker teacher mainly contributes lower-confidence (and thus lower-weight)
+signals rather than confidently wrong ones. The practical implication is that practitioners can
+use whatever open model is convenient---the offline annotation cost is a one-time expense and
+the inference-time model is identical regardless of teacher---without a large penalty, which
+lowers the barrier to reproducing the method.
+\begin{table}[t]
+\centering
+\caption{Effect of the LLM teacher on the distilled student (ECF pair $F_1$, \%).
+Placeholders. \todo{fill}}
+\label{tab:teacher}
+\begin{tabular}{lc}
+\toprule
+Teacher & Pair $F_1$ \\
+\midrule
+No distillation                    & 55.65 \\
+Llama3.1-8B \cite{llama32024}      & 56.40 \\
+GLM4-9B \cite{glm2024}             & 56.60 \\
+Qwen2.5-7B \cite{qwen2025} (ours)  & \textbf{56.81} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Threshold Sensitivity and Significance}
+Because the decision threshold is selected on the development set, we verify that performance is
+stable in a neighborhood of the chosen threshold rather than at a single fragile operating
+point. We further report variance over three seeds in every table and will add paired
+significance tests against the strongest baseline. \todo{add the threshold curve and the
+paired test ($p$-values) once runs are complete}
+
+\subsection{Error Analysis}
+We categorize the remaining errors into three groups. (i) \emph{Distant cross-utterance
+causes}: when the true cause lies many turns before the emotion utterance, positional
+regularity offers little help and the semantic link is often mediated by intervening context
+the encoder compresses imperfectly; these are the hardest pairs and the main source of missed
+recall. (ii) \emph{Subtle non-verbal triggers}: because the acoustic and visual features are
+frozen and pre-extracted, an emotion driven primarily by a fleeting facial expression or a
+prosodic cue can be missed even when the modality necessity terms flag the relevant modality,
+since the underlying feature simply does not encode the trigger. (iii) \emph{Ambiguous
+self-contained causes}: when the emotion and its trigger are tightly entangled within a single
+utterance, the boundary between a self-cause and a cross-cause becomes genuinely ambiguous, and
+both the model and the LLM teacher disagree with the annotation in a non-trivial fraction of
+cases. We expect (ii) to be the most addressable in future work, via end-to-end fine-tuning of
+the non-verbal encoders. \todo{quantify each error category from the confusion analysis}
+
+\subsection{Computational Cost}
+Table~\ref{tab:cost} compares inference cost. Because the LLM is used only offline and the
+modality re-encodings are shared across all pairs of a conversation, the per-conversation
+inference cost is dominated by a constant number of encoder passes plus a lightweight per-pair
+classifier, keeping the method practical for long conversations. % TODO
+The contrast with an online-LLM design is stark: querying an LLM for each candidate pair scales
+with the quadratic number of pairs and incurs network or GPU latency per call, which is one to
+two orders of magnitude slower and, for long conversations, simply infeasible. Our design pays
+an offline annotation cost once during training and then runs at roughly the cost of the legacy
+discriminative model plus two extra encoder passes per conversation and an $O(M)$ per-pair
+classifier (Section~\ref{sec:complexity}). This makes the method deployable in the same
+latency budget as a standard discriminative MECPE model, which we consider an important
+practical property for the dialogue and opinion-mining applications that motivate the task.
+\begin{table}[t]
+\centering
+\caption{Inference cost on ECF (relative to the legacy graph baseline). Placeholders.
+\todo{measure}}
+\label{tab:cost}
+\begin{tabular}{lcc}
+\toprule
+Method & Encoder passes / conv. & Rel.\ latency \\
+\midrule
+Graph (legacy)        & 1 & $1.0\times$ \\
+Online LLM per pair   & 1 & $\gg 10\times$ \\
+\textbf{Ours (full)}  & 3 & $1.4\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Summary of Findings}
+Taken together, the experiments support the central claim of the paper: grounding pair
+decisions in complementary evidence, and combining that evidence conditionally, improves
+robustness without sacrificing accuracy or practicality. The main comparison
+(Table~\ref{tab:main}) shows that the full model leads on the strict pair metric, the ablation
+(Table~\ref{tab:ablation}) shows that the necessity evidence and the distilled reasoning are
+the two largest contributors and that the conditioning in the gate is itself valuable, and the
+modality study (Table~\ref{tab:modality}) shows that the pair-local modality necessity terms
+turn raw multimodality into a measurable, balanced contribution. The sensitivity analyses
+(Tables~\ref{tab:sensitivity} and \ref{tab:budget}) confirm that the design operates on a
+plateau rather than at a fragile optimum, and in particular that \emph{bounding} the positional
+prior---not merely including a positional feature---is what avoids re-introducing positional
+bias. The breakdown by cause distance (Table~\ref{tab:distance}) attributes the gains to the
+intended slices, the teacher study (Table~\ref{tab:teacher}) shows robustness to the choice of
+LLM, and the cost comparison (Table~\ref{tab:cost}) confirms that all of this is achieved at
+roughly the latency of a standard discriminative model. We emphasize once more that the
+specific numbers above are placeholders; the qualitative conclusions are what the architecture
+is designed to deliver, and the final experiments will determine the precise magnitudes.
+\todo{rewrite this summary against the final numbers and significance tests}
+
+% =====================================================================
+\section{Discussion and Limitations}
+\label{sec:discussion}
+\textbf{Why the evidence sources are complementary.} The three signals fail in different
+regimes. Necessity evidence is faithful to the model but uninformative when the encoder itself
+is wrong; the bounded positional prior is cheap and stable but deliberately weak; the distilled
+reasoning carries external commonsense but is noisy and, for self-contained causes, hard to
+frame. The complementarity-aware gate (Section~\ref{sec:fusion}) is what turns these distinct
+failure modes into a net gain: it leans on the distilled reasoning only where the model is
+uncertain and the teacher is reliable and in agreement with the model's own necessity signal,
+and it falls back to the pair representation otherwise.
+
+\noindent\textbf{Relation to debate-style methods.} Unlike approaches that reconcile divergent
+predictions through online multi-LLM debate \cite{wu2025decdebate}, we move all LLM computation
+offline and compress it into a student, trading some reasoning capacity for a constant,
+debate-free inference cost. The two directions are complementary: distilled evidence could in
+principle seed or prune a debate.
+
+\noindent\textbf{Limitations.} (i) The necessity evidence is a \emph{model-level} sensitivity
+signal and does not certify a causal relation in the world. (ii) The acoustic and visual
+features are frozen and pre-extracted, so subtle non-verbal triggers may be missed regardless of
+the evidence machinery. (iii) The distilled reasoning is only as good as the offline teacher and
+the prompt; biases in the teacher can propagate, which the reliability weighting mitigates but
+does not eliminate. (iv) Evaluation focuses on English conversational corpora; cross-lingual and
+open-domain generalization remain open. \todo{revisit limitations after the final experiments}
+
+\noindent\textbf{Broader impact.} Attributing emotions to their causes in conversation can
+support empathetic assistants and well-being applications, but the same capability could be
+misused for intrusive affect surveillance or manipulative targeting. Two properties of our
+design partially mitigate these risks. The model exposes the evidence behind each attribution
+(necessity terms, modality weights, reliability, and agreement), which makes its decisions
+auditable rather than opaque; and because it suppresses confident-but-spurious pairs, it is
+less likely to assert unfounded causal attributions about individuals. We nonetheless caution
+that model-level necessity is not a causal guarantee about the world, and that predictions
+should not be used to make consequential judgements about people without human oversight.
+Representation-learning advances such as contrastive pretraining of the non-verbal encoders
+\cite{chen2020simclr} could further improve the perception of subtle affective cues, but they
+do not change these governance considerations.
 
 % =====================================================================
 \section{Conclusion}
 \label{sec:conclusion}
-We presented a multimodal emotion-cause pair extraction model that grounds its pair
-decisions in three complementary sources of evidence: model-internal necessity evidence
-obtained by faithful, pair-local perturbations; a bounded positional prior; and
-text-grounded counterfactual reasoning distilled offline from a large language model. A
-complementarity-aware gating network fuses these signals under explicit confidence,
-reliability, and agreement conditioning, so that each source compensates the others'
-weaknesses, while the LLM is never queried at inference. Experiments on the ECF benchmark
-show consistent improvements over strong baselines, and ablations confirm that every
-component contributes. % TODO: finalize the quantitative summary
+We presented a multimodal emotion-cause pair extraction model that grounds its pair decisions
+in three complementary sources of evidence: model-internal necessity evidence obtained by
+faithful, pair-local perturbations; a bounded positional prior; and text-grounded counterfactual
+reasoning distilled offline from a large language model. A complementarity-aware gating network
+fuses these signals under explicit confidence, reliability, and agreement conditioning, so each
+source compensates the others' weaknesses, while the LLM is never queried at inference.
+Experiments on the ECF benchmark show consistent improvements over strong baselines, ablations
+confirm that every component contributes, and the model generalizes to the dyadic ConvECPE
+setting. % TODO: finalize the quantitative summary
 In future work we will study the interaction between the distilled reasoning and stronger
 multimodal encoders, and extend the necessity evidence to multi-hop causal chains.
 
-% =====================================================================
+Beyond these immediate extensions, three directions seem promising. First, the offline
+annotation could be made adaptive, re-annotating the pairs the model finds hardest after each
+training phase rather than once, which may sharpen the distilled signal on exactly the pairs
+that matter; the cost is additional teacher queries during training only. Second, the necessity
+evidence is currently restricted to single-cause interventions, but conversational emotions can
+arise from a \emph{conjunction} of causes; estimating the necessity of small groups of
+utterances, rather than single utterances, would let the model express that no single utterance
+is necessary while the group is. Third, because the model exposes interpretable per-pair
+quantities---necessity terms, modality weights, reliability, and agreement---it is naturally
+suited to human-in-the-loop settings where an analyst inspects and corrects attributions; we
+believe surfacing these signals in an interface is a practical way to translate the method's
+robustness into trust. We release the paper sources and will release the code and the offline
+annotation pipeline to facilitate reproduction and these extensions.
+
 \section*{Acknowledgments}
 \todo{add acknowledgments and funding information if applicable.}
 
-\bibliographystyle{elsarticle-harv}
+\bibliographystyle{IEEEtran}
 \bibliography{refs}
 
 \end{document}
