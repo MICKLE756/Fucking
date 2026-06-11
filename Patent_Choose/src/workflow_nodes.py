@@ -17,11 +17,12 @@
 
 import json
 import config
-from dialog_llm import DialogLLM
+from dialog_llm import DialogLLM, GROUNDING_PROMPT
 from intent_recognize_rule_base import IntentRecognizeRuleBase
 from intent_recognize_model_base import IntentRecognizeModelBase
 from intent_state_machine import IntentStateMachine
 from entity_extractor_rule_base import EntityExtractorRuleBase
+from patent_search import PatentSearchService
 from workflow_engine import WorkflowEngine
 
 
@@ -34,6 +35,7 @@ class PatentWorkflow:
         self.intent_model = IntentRecognizeModelBase()
         self.intent_sm = IntentStateMachine()
         self.entity_extractor = EntityExtractorRuleBase()
+        self.search_service = PatentSearchService()
         self.state = self._default_state()
         self.engine = self._build_engine()
 
@@ -64,7 +66,6 @@ class PatentWorkflow:
 
     def reset(self):
         self.state = self._default_state()
-        self.llm.reset()
         self.intent_sm.reset()
 
     def get_state(self) -> dict:
@@ -230,45 +231,12 @@ class PatentWorkflow:
         if slots.get("专利号"):
             state["constraints"]["patent_id"] = slots["专利号"]
 
-        # 从 constraints 中拆分 filters (供检索服务做硬过滤)
-        self._build_filters(state)
+        # 从 constraints + tech_domain 中拆分 filters (供检索服务做硬过滤)
+        state["filters"] = self.search_service.build_filters(
+            state["tech_domain"], state["constraints"]
+        )
 
         return state
-
-    @staticmethod
-    def _build_filters(state: dict):
-        """从 constraints + tech_domain 中拆分 filters 字段"""
-        filters = {}
-        constraints = state.get("constraints", {})
-
-        # tech_field: 优先从 tech_domain 取
-        if state.get("tech_domain"):
-            filters["tech_field"] = state["tech_domain"]
-
-        # publish_year_from: 从 time_range 中提取年份
-        time_range = constraints.get("time_range", "")
-        if time_range:
-            import re
-            # "近3年" / "最近2年"
-            m = re.search(r"[近最近]\s*(\d+)\s*年", time_range)
-            if m:
-                from datetime import datetime
-                filters["publish_year_from"] = datetime.now().year - int(m.group(1))
-            # "2022年以来" / "2023至今"
-            m2 = re.search(r"(\d{4})\s*年?(以[来后]|至今)", time_range)
-            if m2:
-                filters["publish_year_from"] = int(m2.group(1))
-            # "2020-2024"
-            m3 = re.search(r"(\d{4})\s*[-~到至]\s*(\d{4})", time_range)
-            if m3:
-                filters["publish_year_from"] = int(m3.group(1))
-
-        # application_scene: 从 application 约束取
-        app = constraints.get("application", "")
-        if app:
-            filters["application_scene"] = app
-
-        state["filters"] = filters
 
     def _node_completeness_eval(self, state: dict) -> dict:
         """完整性评估"""
@@ -343,12 +311,12 @@ class PatentWorkflow:
         print(f"    [工具] 路由到: {level1}/{level2}")
 
         if level2 in ("专利检索",) or level1 == "search":
-            results = self._search_patents(state)
+            results = self._run_search(state)
             state["_tool_result"] = {"patents": results, "total": len(results)}
 
         elif level2 == "专利详情查询":
             pid = state["constraints"].get("patent_id", "")
-            patent = self._find_patent_by_id(pid)
+            patent = self.search_service.find_by_id(pid)
             if patent:
                 state["_tool_result"] = patent
             else:
@@ -356,7 +324,7 @@ class PatentWorkflow:
 
         elif level2 in ("SWOT分析", "技术对比分析", "风险评估", "价值评估"):
             pid = state["constraints"].get("patent_id", "")
-            patent = self._find_patent_by_id(pid)
+            patent = self.search_service.find_by_id(pid)
             state["_tool_result"] = {
                 "analysis_type": level2,
                 "patent": patent or {"patent_id": pid, "title": "未知"},
@@ -364,7 +332,7 @@ class PatentWorkflow:
             }
 
         elif level2 == "专利聚束组合":
-            results = self._search_patents(state, top_k=5)
+            results = self._run_search(state, top_k=5)
             state["_tool_result"] = {
                 "bundle_name": f"{state['tech_domain'] or '技术'}综合方案",
                 "patents": results,
@@ -391,9 +359,9 @@ class PatentWorkflow:
         if len(tool_result_str) > 4000:
             tool_result_str = tool_result_str[:4000] + "...(已截断)"
 
-        system_prompt = f"""你是回复生成专家。请基于工具执行结果，生成自然语言回复。
-
-回复要求:
+        system_prompt = f"""{GROUNDING_PROMPT}
+# 本轮任务
+你是回复生成专家。请严格基于下方工具执行结果，生成自然语言回复:
 1. 先给整体总结（找到多少条相关专利）
 2. 再给候选专利卡片（若有）: 专利号、标题、发明人、技术领域、公开日期
 3. 再给推荐理由和下一步建议
@@ -450,90 +418,15 @@ class PatentWorkflow:
 
     # ==================== 专利检索工具 ====================
 
-    def _search_patents(self, state: dict, top_k: int = 10) -> list[dict]:
-        """基于 filters 硬过滤 + 关键词评分 检索匹配专利"""
-        filters = state.get("filters", {})
-        candidates = config.PATENT_DATA
-
-        # ① filters 硬过滤
-        if filters:
-            filtered = []
-            for patent in candidates:
-                # publish_year_from: 按公开日期年份过滤
-                year_from = filters.get("publish_year_from")
-                if year_from:
-                    pub_date = patent.get("publish_date", "")
-                    try:
-                        pub_year = int(pub_date[:4]) if len(pub_date) >= 4 else 0
-                    except ValueError:
-                        pub_year = 0
-                    if pub_year < year_from:
-                        continue
-
-                # tech_field: 包含匹配
-                tf = filters.get("tech_field", "")
-                if tf:
-                    patent_tf = patent.get("tech_field", "")
-                    if not any(kw in patent_tf for kw in tf.replace("、", " ").split()):
-                        continue
-
-                # application_scene: 在 title+tech_field+chunk_text 中包含匹配
-                scene = filters.get("application_scene", "")
-                if scene:
-                    text_pool = (
-                        patent.get("title", "") + " " +
-                        patent.get("tech_field", "") + " " +
-                        patent.get("chunk_text", "")
-                    )
-                    if scene not in text_pool:
-                        continue
-
-                filtered.append(patent)
-
-            if filtered:
-                candidates = filtered
-            print(f"    [filters] 硬过滤: {len(config.PATENT_DATA)} → {len(candidates)} 条")
-
-        # ② 关键词评分
-        keywords = []
-        if state.get("tech_domain"):
-            keywords.extend(state["tech_domain"].replace("、", " ").split())
-        if state.get("core_problem"):
-            keywords.extend(state["core_problem"].replace("、", " ").split())
-        for k, v in state.get("constraints", {}).items():
-            if isinstance(v, str):
-                keywords.append(v)
-
-        if not keywords:
-            return candidates[:top_k]
-
-        scored = []
-        for patent in candidates:
-            text_pool = (
-                patent.get("title", "") + " " +
-                patent.get("chunk_text", "") + " " +
-                patent.get("tech_field", "")
-            )
-            score = sum(1 for kw in keywords if kw in text_pool)
-            if score > 0:
-                scored.append((score, patent))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        results = [p for _, p in scored[:top_k]]
-
-        if not results:
-            return candidates[:top_k]
-        return results
-
-    @staticmethod
-    def _find_patent_by_id(patent_id: str) -> dict | None:
-        """根据专利号精确查找"""
-        if not patent_id:
-            return None
-        for patent in config.PATENT_DATA:
-            if patent.get("patent_id") == patent_id:
-                return patent
-        return None
+    def _run_search(self, state: dict, top_k: int = 10) -> list:
+        """以当前 state 调用检索服务（硬过滤 + 关键词评分）。"""
+        return self.search_service.search(
+            tech_domain=state.get("tech_domain", ""),
+            core_problem=state.get("core_problem", ""),
+            constraints=state.get("constraints", {}),
+            filters=state.get("filters", {}),
+            top_k=top_k,
+        )
 
     # ==================== 路由实现 ====================
 
