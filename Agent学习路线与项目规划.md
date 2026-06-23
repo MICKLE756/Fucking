@@ -53,8 +53,10 @@
 #### 前沿方向（聊得出新东西）
 - **Agentic RL**：GRPO、verifiers、可验证环境训练。
 - **Computer Use / GUI Agent / Web Agent**：视觉 + 操作。
-- **Agent 自进化（Self-Evolution）**、技能库（skill library）。
-- 协议生态：**MCP** 已成事实标准，重点掌握。
+- **Agent 自进化（Self-Evolution）**：从经验中沉淀 **技能库（skill library）** 并在使用中自我改进 —— 代表项目 **Hermes Agent**（Nous Research）的核心就是这套「闭环学习」，建议作为重点案例研究。
+- **跨会话记忆 + 用户建模**：长期记忆、会话检索（如 FTS5 全文检索 + LLM 摘要）、对用户的持续建模（如 Honcho dialectic user modeling），是 Hermes 这类「越用越懂你」Agent 的关键。
+- **技能标准化**：关注 **agentskills.io** 开放标准 与 **MCP** —— MCP 已成事实标准，重点掌握。
+- **Agent 部署形态**：从「绑在笔记本上」到 **常驻云端 / serverless**（Docker、SSH、Modal、Daytona 等后端，IM 入口如 Telegram/Discord），是工程化新趋势。
 
 #### 必备基本功
 - Python 工程（类型标注、异步、包管理）、Git、Docker、Linux 基础。
@@ -100,6 +102,19 @@
   新颖点：**自动假设 → 实验 → 迭代闭环**，简历上极有分量。
   https://github.com/microsoft/RD-Agent
 
+### 方向六：自进化 Agent · 个人 AI 助手（最新颖 · 故事性最强 · 重点推荐）
+- **NousResearch/hermes-agent** — Nous Research 的**自进化 AI Agent**。
+  新颖点（简历最能讲的一组）：
+  - **闭环学习（self-improving loop）**：复杂任务后**自动生成技能**，技能在使用中持续自我改进；
+  - **跨会话记忆 + 用户建模**：FTS5 会话全文检索 + LLM 摘要做跨会话回忆，集成 Honcho 对用户建模，「越用越懂你」；
+  - **模型无关**：一条 `hermes model` 切换 OpenRouter / Nous Portal / NVIDIA NIM / 本地端点等，无锁定；
+  - **随处运行**：本地 / Docker / SSH / Modal / Daytona，serverless 空闲近乎零成本，能跑在 $5 VPS；
+  - **多入口 + 子代理**：Telegram/Discord/Slack 等统一网关，可派生隔离子代理并行、用 Python 经 RPC 调工具。
+  可复现：MIT 协议，一行 `curl ... | bash`（Win 有 PowerShell 安装），文档 https://hermes-agent.nousresearch.com/docs/ 。
+  https://github.com/NousResearch/hermes-agent
+
+  > 这块正好把上面「Agent 自进化 + 跨会话记忆 + 技能库 + 云端部署」的前沿知识点串成一个能落地、能演示、能讲故事的作品，和「方向四 记忆型助手（letta）」是同一条主线、互为补充。
+
 ---
 
 ## 三、推荐执行组合
@@ -108,9 +123,17 @@
 |---|---|---|---|
 | 项目 1（炫 demo） | 展示能落地、效果惊艳 | **browser-use**（首选方向一） | 「自动完成某项网上任务」的 agent + demo 视频 |
 | 项目 2（有数字） | 展示有量化结果 | vanna（SQL 准确率）/ 或复现 SWE-agent | README 里报具体指标 + 你的改进 |
-| 项目 3（有深度，可选） | 展示原理深度 | letta / RD-Agent / gpt-researcher | 技术博客讲清新颖点 |
+| 项目 3（有深度，可选） | 展示原理深度 | **Hermes Agent**（自进化/记忆）/ letta / RD-Agent / gpt-researcher | 技术博客讲清新颖点 |
 
-**最小可行组合：browser-use（惊艳）+ vanna（扎实、可量化）。**
+**最小可行组合：browser-use（惊艳）+ vanna（扎实、可量化）。** 若想再加一个「有深度、最新颖」的，首推 **Hermes Agent**。
+
+### 结合 Hermes Agent 的进阶玩法（把三个方向打通）
+用 **Hermes Agent 作为「会自进化的 Agent 运行时」**，把前面的方向挂上去，做成一个有记忆、会成长的个人助手：
+- **挂工具**：给 Hermes 接 `browser-use`（网页操作）/ `vanna`（查数据库）作为技能或工具，让它能真正「上网做事、查数据」。
+- **用它的闭环**：跑几个真实任务，观察它**自动沉淀出哪些技能**、技能如何自我改进 —— 截图/录屏作为 demo 与博客素材。
+- **可量化的实验（简历亮点）**：设计一组任务，对比「开启 vs 关闭自进化/记忆」的**成功率、所需轮数、token 成本**，用数字证明自进化的收益。
+- **换模型实验**：用 `hermes model` 切换不同模型（含开源/国内模型），对比效果与成本。
+- 简历写法示例：「基于 Hermes Agent 构建可自进化的个人助手，集成 browser-use/vanna 工具；通过 A/B 实验验证自进化使任务成功率从 X% 提升到 Y%、平均轮数下降 Z%。」
 
 执行要点：
 1. 先复现跑通 → 再做**自己的扩展**（换模型 / 加工具 / 改策略 / 迁到自己的场景）。
