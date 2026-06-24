@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Env / secrets
+.env
+
+# 运行时学习状态（槽位记忆层），不纳入版本控制
+Patent_Choose/data/

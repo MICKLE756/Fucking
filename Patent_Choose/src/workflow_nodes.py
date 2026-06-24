@@ -22,6 +22,7 @@ from intent_recognize_rule_base import IntentRecognizeRuleBase
 from intent_recognize_model_base import IntentRecognizeModelBase
 from intent_state_machine import IntentStateMachine
 from entity_extractor_rule_base import EntityExtractorRuleBase
+from intent_slot_memory import SlotMemory
 from patent_search import PatentSearchService
 from workflow_engine import WorkflowEngine
 
@@ -40,6 +41,7 @@ class PatentWorkflow:
         self.intent_model = IntentRecognizeModelBase()
         self.intent_sm = IntentStateMachine()
         self.entity_extractor = EntityExtractorRuleBase()
+        self.slot_memory = SlotMemory()
         self.search_service = PatentSearchService()
         self.state = self._default_state()
         self.engine = self._build_engine()
@@ -65,9 +67,40 @@ class PatentWorkflow:
             "history": [],
             # 内部路由标记
             "_post_extract_route": "",   # "direct_execute" | "eval"
+            "_pending_slot": "",         # 上一轮追问的槽位（用于回填学习）
+            "_pending_intent": (),       # 发起该追问的 (一级, 二级) 意图
+            "_gather_query": "",         # 触发本段信息收集的原始问题（用于沉淀示例）
             "_response": "",
             "_request": "",
         }
+
+    # 槽位名 → 该槽位是否已填的判断依据（state 字段）
+    @staticmethod
+    def _slot_filled(state: dict, slot: str) -> bool:
+        if slot == "技术领域":
+            return bool(state.get("tech_domain"))
+        if slot == "核心问题":
+            return bool(state.get("core_problem"))
+        if slot == "约束条件":
+            return bool(state.get("constraints"))
+        if slot == "专利号":
+            return bool(state.get("constraints", {}).get("patent_id"))
+        return False
+
+    def _required_slots(self, intent: dict) -> list:
+        """当前意图需要补全的槽位全集（去重，保持稳定顺序）。"""
+        slots = []
+        for l2_list in intent.values():
+            for l2 in l2_list:
+                for s in config.ENTITY_INFO.get(l2, []):
+                    if s not in slots:
+                        slots.append(s)
+        return slots
+
+    def _missing_slots(self, state: dict) -> list:
+        """当前意图中尚未填好的槽位。"""
+        return [s for s in self._required_slots(state.get("intent", {}))
+                if not self._slot_filled(state, s)]
 
     def reset(self):
         self.state = self._default_state()
@@ -77,7 +110,8 @@ class PatentWorkflow:
         """返回可序列化的外部状态"""
         exclude = {"user_input", "history", "intent", "_post_extract_route",
                     "_response", "_request", "_trace", "_eval_result",
-                    "_tool_result", "_confirm_result"}
+                    "_tool_result", "_confirm_result",
+                    "_pending_slot", "_pending_intent", "_gather_query"}
         return {k: v for k, v in self.state.items() if k not in exclude}
 
     # ==================== 构建工作流图 ====================
@@ -136,6 +170,10 @@ class PatentWorkflow:
         """意图识别: 三级 Fallback (规则→远程模型→OpenAI) + 状态机修正"""
         text = state["user_input"]
         intent = None
+
+        # 记录触发本段信息收集的原始问题（仅首轮，后续追问回答不覆盖）
+        if state.get("clarify_round", 0) == 0:
+            state["_gather_query"] = text
 
         # ① 规则匹配（按分数取最高意图，并用置信度/分差判断是否「模糊」）
         top = self.intent_recognizer.top_intent(text)
@@ -246,6 +284,15 @@ class PatentWorkflow:
             state["tech_domain"], state["constraints"]
         )
 
+        # 记忆学习：若上一轮追问的槽位这一轮被补全，则记一次「问到了」
+        pending = state.get("_pending_slot")
+        if pending and self._slot_filled(state, pending):
+            pl1, pl2 = (state.get("_pending_intent") or ("", ""))[:2] or ("", "")
+            self.slot_memory.record_fill(pl1, pl2, pending)
+            print(f"    [记忆] 槽位补全: {pl1}/{pl2} · {pending}")
+            state["_pending_slot"] = ""
+            state["_pending_intent"] = ()
+
         return state
 
     def _node_completeness_eval(self, state: dict) -> dict:
@@ -272,12 +319,40 @@ class PatentWorkflow:
         return state
 
     def _node_clarify_gen(self, state: dict) -> dict:
-        """生成追问"""
+        """生成追问（记忆层：命中模板则复用学到的话术，否则生成并沉淀）"""
         state["clarify_round"] += 1
         state["phase"] = "clarifying"
-        missing = state.get("_eval_result", {}).get("highest_priority_missing", "更多细节")
         print(f"    [追问] 第 {state['clarify_round']}/{state['max_clarify_round']} 轮")
 
+        level1 = state.get("intent_level1", "")
+        level2 = state["intent_level2"][0] if state.get("intent_level2") else ""
+
+        # 确定性地算出还缺哪些槽位，并按「学到的优先级」排序
+        missing = self._missing_slots(state)
+        ranked = self.slot_memory.suggest_questions(level1, level2, missing)
+
+        if ranked:
+            slot, cached_q = ranked[0]
+            if self.slot_memory.is_confident(level1, level2, slot):
+                # 命中可信模板：直接复用，跳过 LLM 生成
+                question = cached_q
+                print(f"    [记忆] 复用模板提问 ({level1}/{level2} · {slot})")
+            else:
+                # 冷启动 / 话术尚不可信：用 LLM 生成，并把这次话术沉淀进记忆
+                question = self._llm_clarify(state, slot)
+            self.slot_memory.record_ask(level1, level2, slot, question)
+            state["_pending_slot"] = slot
+            state["_pending_intent"] = (level1, level2)
+            state["_response"] = question
+        else:
+            # 没有可定位的具体槽位，回退到原 LLM 自由追问
+            missing_desc = state.get("_eval_result", {}).get("highest_priority_missing", "更多细节")
+            state["_response"] = self._llm_clarify(state, missing_desc)
+
+        return state
+
+    def _llm_clarify(self, state: dict, target: str) -> str:
+        """用 LLM 生成一句针对 target（槽位名或缺失描述）的追问。"""
         system_prompt = f"""你是追问澄清专家。请基于当前缺失的信息，生成一个简短、友好的追问语句。
 
 规则:
@@ -290,10 +365,8 @@ class PatentWorkflow:
 - 核心问题: {state['core_problem'] or '未提及'}
 - 约束条件: {json.dumps(state['constraints'], ensure_ascii=False) or '未提及'}
 
-最需要补充的信息: {missing}"""
-
-        state["_response"] = self.llm.call_text(system_prompt, "请生成一个追问语句。")
-        return state
+最需要补充的信息: {target}"""
+        return self.llm.call_text(system_prompt, "请生成一个追问语句。")
 
     def _node_confirm_gen(self, state: dict) -> dict:
         """生成确认语句"""
@@ -311,6 +384,16 @@ class PatentWorkflow:
 - 约束条件: {json.dumps(state['constraints'], ensure_ascii=False)}"""
 
         state["_response"] = self.llm.call_text(system_prompt, "请生成确认语句。")
+
+        # 记忆学习：一段信息收集走通（收敛到确认）即记一次成功会话
+        eval_result = state.get("_eval_result", {})
+        level1 = state.get("intent_level1", "")
+        level2 = state["intent_level2"][0] if state.get("intent_level2") else ""
+        self.slot_memory.record_session(
+            level1, level2,
+            success=bool(eval_result.get("is_complete", True)),
+            example=state.get("_gather_query", ""),
+        )
         return state
 
     def _node_tool_execute(self, state: dict) -> dict:
