@@ -1,8 +1,12 @@
 import re
+from typing import Optional
 
 
 class IntentRecognizeRuleBase:
     """意图识别-规则"""
+
+    # 正则命中权重（更具体，给高权重）
+    REGEX_WEIGHT = 4.0
 
     def __init__(self):
         # 定义意图关键词库
@@ -161,28 +165,87 @@ class IntentRecognizeRuleBase:
             },
         }
 
-    def __call__(self, text):
-        """识别意图，返回 {一级意图: [二级意图列表]}"""
-        text = re.sub(r"\s+", " ", text).strip()
-        res = {}
+    @staticmethod
+    def _keyword_weight(keyword: str) -> float:
+        """关键词命中权重：越长越具体，权重越高。"""
+        return 1.0 + 0.4 * len(keyword)
 
-        for intent_level1 in self.intent_keywords:
-            # 正则表达式匹配
-            for intent, patterns in self.intent_patterns.get(intent_level1, {}).items():
+    def score(self, text: str) -> dict:
+        """对每个意图打分，返回 {一级意图: {"score": float, "level2": {二级意图: 分}}}。
+
+        正则命中权重高于关键词；同一二级意图多次命中分数累加。一级意图分数取其下
+        二级意图的最高分（一次强命中即可代表该一级意图）。
+        """
+        text = re.sub(r"\s+", " ", text).strip()
+        scores: dict = {}
+
+        for level1 in self.intent_keywords:
+            level2_scores: dict = {}
+
+            for intent, patterns in self.intent_patterns.get(level1, {}).items():
                 for pattern in patterns:
                     if re.search(pattern, text, re.IGNORECASE):
-                        res.setdefault(intent_level1, []).append(intent)
+                        level2_scores[intent] = level2_scores.get(intent, 0.0) + self.REGEX_WEIGHT
 
-            # 关键词匹配
-            for intent, keywords in self.intent_keywords[intent_level1].items():
+            for intent, keywords in self.intent_keywords[level1].items():
                 for keyword in keywords:
                     if keyword in text:
-                        res.setdefault(intent_level1, []).append(intent)
+                        level2_scores[intent] = (
+                            level2_scores.get(intent, 0.0) + self._keyword_weight(keyword)
+                        )
 
-            # 去重（保持出现顺序，结果稳定可复现）
-            if intent_level1 in res:
-                res[intent_level1] = list(dict.fromkeys(res[intent_level1]))
+            if level2_scores:
+                scores[level1] = {
+                    "score": max(level2_scores.values()),
+                    "level2": level2_scores,
+                }
 
+        return scores
+
+    def top_intent(self, text: str) -> Optional[dict]:
+        """返回得分最高的一级意图及其消歧信息。
+
+        Returns:
+            None（无命中）或
+            {"level1": str, "level2": [二级意图(按分降序)], "score": float, "margin": float}
+            margin = 最高分 - 次高分，用于判断是否「模糊」（需降级到模型/LLM）。
+        """
+        scores = self.score(text)
+        if not scores:
+            return None
+
+        ranked = sorted(scores.items(), key=lambda kv: kv[1]["score"], reverse=True)
+        top_level1, top_info = ranked[0]
+        runner_up = ranked[1][1]["score"] if len(ranked) > 1 else 0.0
+
+        level2 = [
+            name for name, _ in sorted(
+                top_info["level2"].items(), key=lambda kv: kv[1], reverse=True
+            )
+        ]
+        return {
+            "level1": top_level1,
+            "level2": level2,
+            "score": top_info["score"],
+            "margin": top_info["score"] - runner_up,
+        }
+
+    def __call__(self, text):
+        """识别意图，返回 {一级意图: [二级意图列表]}，按得分从高到低排序。
+
+        注意：返回的 dict 已按一级意图得分降序排列，下游取第一个 key 即为最可能意图，
+        不再依赖关键词定义顺序。
+        """
+        scores = self.score(text)
+        ranked = sorted(scores.items(), key=lambda kv: kv[1]["score"], reverse=True)
+
+        res = {}
+        for level1, info in ranked:
+            res[level1] = [
+                name for name, _ in sorted(
+                    info["level2"].items(), key=lambda kv: kv[1], reverse=True
+                )
+            ]
         return res
 
 

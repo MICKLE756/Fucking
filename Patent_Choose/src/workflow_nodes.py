@@ -29,6 +29,11 @@ from workflow_engine import WorkflowEngine
 class PatentWorkflow:
     """专利检索动态工作流"""
 
+    # 规则层置信度阈值：低于 MIN_SCORE 或 Top1/Top2 分差低于 MIN_MARGIN 视为「模糊」，
+    # 不直接采用规则结果，而是降级到远程模型 / OpenAI 兜底，避免子串误命中一票否决。
+    RULE_MIN_SCORE = 2.0
+    RULE_MIN_MARGIN = 1.0
+
     def __init__(self):
         self.llm = DialogLLM()
         self.intent_recognizer = IntentRecognizeRuleBase()
@@ -114,8 +119,10 @@ class PatentWorkflow:
             return state
 
         text = state["user_input"].strip().lower()
-        affirm = ["确认", "继续", "是的", "好的", "没问题", "对", "可以", "是", "ok", "yes"]
-        deny = ["不对", "不是", "不行", "修改", "错", "换"]
+        affirm = ["确认", "继续", "是的", "好的", "没问题", "对", "可以", "ok", "yes", "开始检索", "就这样"]
+        # 否定/犹豫词优先：任何修改诉求都不应被当作确认而直接执行旧条件。
+        deny = ["不对", "不是", "不行", "不要", "不用", "修改", "调整", "换", "重新", "重来",
+                "不过", "但是", "但", "先不", "另外", "再加", "改"]
 
         if any(kw in text for kw in affirm) and not any(kw in text for kw in deny):
             state["_confirm_result"] = "affirm"
@@ -130,14 +137,17 @@ class PatentWorkflow:
         text = state["user_input"]
         intent = None
 
-        # ① 规则匹配
-        intent = self.intent_recognizer(text)
-        if intent:
-            print(f"    [规则] 意图: {intent}")
+        # ① 规则匹配（按分数取最高意图，并用置信度/分差判断是否「模糊」）
+        top = self.intent_recognizer.top_intent(text)
+        if top and top["score"] >= self.RULE_MIN_SCORE and top["margin"] >= self.RULE_MIN_MARGIN:
+            intent = {top["level1"]: top["level2"]}
+            print(f"    [规则] 意图: {intent} (score={top['score']:.1f}, margin={top['margin']:.1f})")
+        elif top:
+            print(f"    [规则] 命中但模糊 (score={top['score']:.1f}, margin={top['margin']:.1f}), 降级")
 
         # ② 远程微调模型
         if not intent and self.intent_model.enabled:
-            print("    [远程模型] 规则未命中, 尝试远程模型...")
+            print("    [远程模型] 规则未命中/模糊, 尝试远程模型...")
             intent = self.intent_model(text)
 
         # ③ OpenAI 兜底

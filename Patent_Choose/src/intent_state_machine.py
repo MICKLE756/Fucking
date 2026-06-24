@@ -108,8 +108,13 @@ class IntentStateMachine:
             self._state = new_state
 
             if corrected_level1 is not None and corrected_level1 != raw_level1:
-                default_level2 = config.INTENT_INFO.get(corrected_level1, [""])[:1]
-                corrected = {corrected_level1: default_level2}
+                # 尽量保留原始二级意图：若其在修正后一级意图下合法则沿用，
+                # 否则才回退到该一级意图的默认二级意图，避免无谓地丢失信息。
+                raw_level2 = raw_intent[raw_level1]
+                valid_l2 = config.INTENT_INFO.get(corrected_level1, [])
+                kept = [l2 for l2 in raw_level2 if l2 in valid_l2]
+                corrected_level2 = kept if kept else valid_l2[:1]
+                corrected = {corrected_level1: corrected_level2}
                 print(f"    [状态机] {old_state} × {raw_level1} → {new_state} | "
                       f"意图修正: {raw_intent} → {corrected}")
                 return corrected
