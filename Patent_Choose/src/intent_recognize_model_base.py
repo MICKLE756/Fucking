@@ -72,6 +72,7 @@ class IntentRecognizeModelBase:
             ],
             "temperature": 0.1,
             "max_tokens": 128,
+            "response_format": {"type": "json_object"},
         }
 
         with httpx.Client(timeout=self.timeout) as client:
@@ -80,10 +81,21 @@ class IntentRecognizeModelBase:
 
         return self._parse_response(resp.json())
 
+    @staticmethod
+    def _loads(content: str) -> dict:
+        """容忍 ```json 围栏或前后多余文本，抠出首尾大括号再解析。"""
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            start, end = content.find("{"), content.rfind("}") + 1
+            if start != -1 and end > start:
+                return json.loads(content[start:end])
+            raise
+
     def _parse_response(self, data: dict) -> Optional[dict]:
         try:
             content = data["choices"][0]["message"]["content"]
-            result = json.loads(content)
+            result = self._loads(content)
             level1 = result.get("一级意图", "")
             level2 = result.get("二级意图", [])
 
