@@ -19,6 +19,10 @@ from .core.llm import HelloAgentsLLM
 from .core.config import Config
 from .core.message import Message
 from .core.exceptions import HelloAgentsException
+from .core.llm_response import LLMResponse, StreamStats, ToolCall, LLMToolResponse
+from .core.lifecycle import EventType, AgentEvent, ExecutionContext, LifecycleHook
+from .core.streaming import StreamEventType, StreamEvent, StreamBuffer, stream_to_sse, stream_to_json
+from .core.session_store import SessionStore
 
 # Agent实现
 from .agents.simple_agent import SimpleAgent
@@ -47,6 +51,20 @@ __all__ = [
     "Config",
     "Message",
     "HelloAgentsException",
+    "LLMResponse",
+    "StreamStats",
+    "ToolCall",
+    "LLMToolResponse",
+    "EventType",
+    "AgentEvent",
+    "ExecutionContext",
+    "LifecycleHook",
+    "StreamEventType",
+    "StreamEvent",
+    "StreamBuffer",
+    "stream_to_sse",
+    "stream_to_json",
+    "SessionStore",
 
     # Agent范式
     "SimpleAgent",

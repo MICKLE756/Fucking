@@ -21,7 +21,8 @@ class SimpleAgent(Agent):
         system_prompt: Optional[str] = None,
         config: Optional[Config] = None,
         tool_registry: Optional['ToolRegistry'] = None,
-        enable_tool_calling: bool = True
+        enable_tool_calling: bool = True,
+        on_event=None
     ):
         """
         初始化SimpleAgent
@@ -34,7 +35,7 @@ class SimpleAgent(Agent):
             tool_registry: 工具注册表（可选，如果提供则启用工具调用）
             enable_tool_calling: 是否启用工具调用（只有在提供tool_registry时生效）
         """
-        super().__init__(name, llm, system_prompt, config)
+        super().__init__(name, llm, system_prompt, config, on_event=on_event)
         self.tool_registry = tool_registry
         self.enable_tool_calling = enable_tool_calling and tool_registry is not None
     
