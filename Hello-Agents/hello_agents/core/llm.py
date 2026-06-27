@@ -1,10 +1,15 @@
 """HelloAgents统一LLM接口 - 基于OpenAI原生API"""
 
 import os
-from typing import Literal, Optional, Iterator
+import time
+import asyncio
+import threading
+import queue
+from typing import Literal, Optional, Iterator, List, Dict, Union, AsyncIterator
 from openai import OpenAI
 
 from .exceptions import HelloAgentsException
+from .llm_response import LLMResponse, StreamStats, ToolCall, LLMToolResponse
 
 # 支持的LLM提供商
 SUPPORTED_PROVIDERS = Literal[
@@ -84,6 +89,8 @@ class HelloAgentsLLM:
 
         # 创建OpenAI客户端
         self._client = self._create_client()
+        # 最近一次流式调用的统计信息（astream_invoke / stream 结束后可读）
+        self.last_call_stats: Optional[StreamStats] = None
 
     def _auto_detect_provider(self, api_key: Optional[str], base_url: Optional[str]) -> str:
         """
@@ -341,3 +348,158 @@ class HelloAgentsLLM:
         """
         temperature = kwargs.get('temperature')
         yield from self.think(messages, temperature)
+
+    def invoke_response(self, messages: list[dict[str, str]], **kwargs) -> LLMResponse:
+        """
+        非流式调用LLM，返回结构化的 LLMResponse（含 content/model/usage/latency/推理过程）。
+
+        与 invoke() 的区别：invoke() 只返回 str（向后兼容，agents 都依赖它）；
+        本方法返回完整响应对象，便于日志、统计、thinking model 的推理过程提取。
+        LLMResponse.__str__ 返回 content，所以可直接当字符串打印。
+        """
+        start = time.time()
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=kwargs.get('temperature', self.temperature),
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens']}
+            )
+        except Exception as e:
+            raise HelloAgentsException(f"LLM调用失败: {str(e)}")
+
+        latency_ms = int((time.time() - start) * 1000)
+        msg = response.choices[0].message
+        usage = {}
+        if getattr(response, "usage", None) is not None:
+            usage = {
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "total_tokens": getattr(response.usage, "total_tokens", 0),
+            }
+        # thinking model（o1 / deepseek-reasoner 等）的推理过程
+        reasoning = getattr(msg, "reasoning_content", None)
+        return LLMResponse(
+            content=msg.content or "",
+            model=getattr(response, "model", self.model) or self.model,
+            usage=usage,
+            latency_ms=latency_ms,
+            reasoning_content=reasoning,
+        )
+
+    def invoke_with_tools(
+        self,
+        messages: List[Dict],
+        tools: List[Dict],
+        tool_choice: Union[str, Dict] = "auto",
+        **kwargs
+    ) -> LLMToolResponse:
+        """
+        调用 LLM 并支持工具调用（OpenAI Function Calling）。
+
+        Args:
+            messages: 消息列表
+            tools: 工具 schema 列表（OpenAI Function Calling 规范）
+            tool_choice: "auto" / "none" / "required" / {"type":"function",...}
+            **kwargs: 其他参数（temperature, max_tokens 等）
+
+        Returns:
+            LLMToolResponse(content, tool_calls, model, usage, latency_ms)
+        """
+        start = time.time()
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=kwargs.get('temperature', self.temperature),
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens']}
+            )
+        except Exception as e:
+            raise HelloAgentsException(f"LLM工具调用失败: {str(e)}")
+
+        latency_ms = int((time.time() - start) * 1000)
+        msg = response.choices[0].message
+        tool_calls: List[ToolCall] = []
+        for tc in (getattr(msg, "tool_calls", None) or []):
+            tool_calls.append(ToolCall(
+                id=tc.id,
+                name=tc.function.name,
+                arguments=tc.function.arguments,
+            ))
+        usage = {}
+        if getattr(response, "usage", None) is not None:
+            usage = {
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "total_tokens": getattr(response.usage, "total_tokens", 0),
+            }
+        return LLMToolResponse(
+            content=msg.content,
+            tool_calls=tool_calls,
+            model=getattr(response, "model", self.model) or self.model,
+            usage=usage,
+            latency_ms=latency_ms,
+        )
+
+    # ==================== 异步方法 ====================
+
+    async def ainvoke(self, messages: list[dict[str, str]], **kwargs) -> str:
+        """
+        异步非流式调用 LLM，返回 str（与同步 invoke 一致，async 孪生版）。
+        在线程池中运行同步 invoke，避免阻塞事件循环。
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.invoke(messages, **kwargs))
+
+    async def ainvoke_response(self, messages: list[dict[str, str]], **kwargs) -> LLMResponse:
+        """异步版 invoke_response，返回结构化 LLMResponse。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.invoke_response(messages, **kwargs))
+
+    async def astream_invoke(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
+        """
+        异步流式调用 LLM，逐块产出文本片段。
+
+        vendored 版没有原生异步 adapter，这里用「后台线程跑同步流式生成器 +
+        线程安全队列」桥接到 asyncio，使其可在 `async for` 中实时消费。
+        """
+        loop = asyncio.get_event_loop()
+        q: "queue.Queue" = queue.Queue()
+        _DONE = object()
+
+        def _producer():
+            try:
+                for chunk in self.stream_invoke(messages, **kwargs):
+                    loop.call_soon_threadsafe(q.put_nowait, chunk)
+            except Exception as e:  # 把异常透传到消费端
+                loop.call_soon_threadsafe(q.put_nowait, e)
+            finally:
+                loop.call_soon_threadsafe(q.put_nowait, _DONE)
+
+        threading.Thread(target=_producer, daemon=True).start()
+
+        while True:
+            item = await loop.run_in_executor(None, q.get)
+            if item is _DONE:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield item
+
+    async def ainvoke_with_tools(
+        self,
+        messages: List[Dict],
+        tools: List[Dict],
+        tool_choice: Union[str, Dict] = "auto",
+        **kwargs
+    ) -> LLMToolResponse:
+        """异步版 invoke_with_tools。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.invoke_with_tools(messages, tools, tool_choice, **kwargs)
+        )
