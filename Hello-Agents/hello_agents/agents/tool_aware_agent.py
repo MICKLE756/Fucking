@@ -2,6 +2,18 @@
 
 from __future__ import annotations
 
+# 允许直接 `python hello_agents/agents/tool_aware_agent.py` 运行：补齐包上下文，
+# 这样下面的相对导入（from ..core ...）在脚本模式下也能解析。
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(
+        0,
+        _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+    )
+    __package__ = "hello_agents.agents"
+
 import ast
 import json
 import logging
@@ -450,4 +462,48 @@ class ToolAwareSimpleAgent(SimpleAgent):
                     return parsed
 
         return None
+
+
+def _demo() -> int:
+    """冒烟测试：用本地 .env（Ollama）真实跑通 ToolAwareSimpleAgent，并监听工具调用。
+
+    运行方式（任选其一，均使用你本机 .env 里的 LLM/Ollama 配置）：
+        python hello_agents/agents/tool_aware_agent.py
+        python -m hello_agents.agents.tool_aware_agent
+    """
+    from dotenv import load_dotenv
+
+    from ..core.exceptions import HelloAgentsException
+    from ..core.llm import HelloAgentsLLM
+    from ..tools.builtin.calculator import CalculatorTool
+
+    load_dotenv()
+
+    try:
+        llm = HelloAgentsLLM()
+    except HelloAgentsException as e:
+        print("\n⚠️  无法创建 LLM，请先在 .env 配置 LLM_MODEL_ID / LLM_BASE_URL"
+              "（Ollama 可设 LLM_API_KEY=ollama）。")
+        print(f"    原始错误：{e}")
+        return 1
+
+    def _listener(call_info: dict[str, Any]) -> None:
+        print(f"🔍 监听到工具调用: {call_info['tool_name']} → {call_info['parsed_parameters']}")
+
+    registry = ToolRegistry()
+    registry.register_tool(CalculatorTool())
+
+    agent = ToolAwareSimpleAgent(
+        name="工具感知助手",
+        llm=llm,
+        tool_registry=registry,
+        tool_call_listener=_listener,
+    )
+    answer = agent.run("请计算 15 * 23 + 45 等于多少？")
+    print(f"\n✅ ToolAwareSimpleAgent 跑通，回复: {answer}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_demo())
 

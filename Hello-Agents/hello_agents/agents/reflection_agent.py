@@ -1,5 +1,17 @@
 """Reflection Agent实现 - 自我反思与迭代优化的智能体"""
 
+# 允许直接 `python hello_agents/agents/reflection_agent.py` 运行：补齐包上下文，
+# 这样下面的相对导入（from ..core ...）在脚本模式下也能解析。
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(
+        0,
+        _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+    )
+    __package__ = "hello_agents.agents"
+
 from typing import Optional, List, Dict, Any
 from ..core.agent import Agent
 from ..core.llm import HelloAgentsLLM
@@ -178,3 +190,34 @@ class ReflectionAgent(Agent):
         """调用LLM并获取完整响应"""
         messages = [{"role": "user", "content": prompt}]
         return self.llm.invoke(messages, **kwargs) or ""
+
+
+def _demo() -> int:
+    """冒烟测试：用本地 .env（Ollama）真实跑通 ReflectionAgent 的反思-优化迭代。
+
+    运行方式（任选其一，均使用你本机 .env 里的 LLM/Ollama 配置）：
+        python hello_agents/agents/reflection_agent.py
+        python -m hello_agents.agents.reflection_agent
+    """
+    from dotenv import load_dotenv
+
+    from ..core.exceptions import HelloAgentsException
+
+    load_dotenv()
+
+    try:
+        llm = HelloAgentsLLM()
+    except HelloAgentsException as e:
+        print("\n⚠️  无法创建 LLM，请先在 .env 配置 LLM_MODEL_ID / LLM_BASE_URL"
+              "（Ollama 可设 LLM_API_KEY=ollama）。")
+        print(f"    原始错误：{e}")
+        return 1
+
+    agent = ReflectionAgent(name="反思助手", llm=llm, max_iterations=2)
+    answer = agent.run("用 Python 写一个计算列表平均值的函数。")
+    print(f"\n✅ ReflectionAgent 跑通，最终结果:\n{answer}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_demo())

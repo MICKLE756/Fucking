@@ -2,6 +2,18 @@
 
 from __future__ import annotations
 
+# 允许直接 `python hello_agents/agents/function_call_agent.py` 运行：补齐包上下文，
+# 这样下面的相对导入（from ..core ...）在脚本模式下也能解析。
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(
+        0,
+        _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+    )
+    __package__ = "hello_agents.agents"
+
 import json
 from typing import Iterator, Optional, Union, TYPE_CHECKING, Any, Dict
 
@@ -377,3 +389,40 @@ class FunctionCallAgent(Agent):
         """流式调用暂未实现，直接回退到一次性调用"""
         result = self.run(input_text, **kwargs)
         yield result
+
+
+def _demo() -> int:
+    """冒烟测试：用本地 .env（Ollama）真实跑通 FunctionCallAgent 的函数调用范式。
+
+    注：需要你的 Ollama 模型支持 OpenAI 兼容的 tools/function-calling（如 qwen2.5、llama3.1）。
+    运行方式（任选其一）：
+        python hello_agents/agents/function_call_agent.py
+        python -m hello_agents.agents.function_call_agent
+    """
+    from dotenv import load_dotenv
+
+    from ..core.exceptions import HelloAgentsException
+    from ..tools import ToolRegistry
+    from ..tools.builtin.calculator import CalculatorTool
+
+    load_dotenv()
+
+    try:
+        llm = HelloAgentsLLM()
+    except HelloAgentsException as e:
+        print("\n⚠️  无法创建 LLM，请先在 .env 配置 LLM_MODEL_ID / LLM_BASE_URL"
+              "（Ollama 可设 LLM_API_KEY=ollama）。")
+        print(f"    原始错误：{e}")
+        return 1
+
+    registry = ToolRegistry()
+    registry.register_tool(CalculatorTool())
+
+    agent = FunctionCallAgent(name="函数调用助手", llm=llm, tool_registry=registry)
+    answer = agent.run("请调用计算器工具计算 15 * 23 + 45 等于多少？")
+    print(f"\n✅ FunctionCallAgent 跑通，最终答案: {answer}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_demo())
