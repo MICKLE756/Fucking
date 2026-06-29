@@ -14,32 +14,73 @@ HelloAgents框架的内置工具集合，包括：
 - GAIAEvaluationTool: GAIA评估工具（第12章）
 - LLMJudgeTool: LLM Judge评估工具（第12章）
 - WinRateTool: Win Rate评估工具（第12章）
+
+注意：memory/rag/protocol/evaluation/rl 等工具依赖可选的重型第三方库
+（torch、qdrant、huggingface_hub、trl 等）。这些导入用 try/except 包裹，
+缺少对应可选依赖时**优雅跳过**而非让整个包导入失败——只装核心依赖也能
+使用 SearchTool / CalculatorTool 等轻量工具。
 """
 
+# 轻量内置工具（仅依赖核心库，始终可用）
 from .search_tool import SearchTool
 from .calculator import CalculatorTool
-from .memory_tool import MemoryTool
-from .rag_tool import RAGTool
-from .note_tool import NoteTool
-from .terminal_tool import TerminalTool
-from .protocol_tools import MCPTool, A2ATool, ANPTool
-from .bfcl_evaluation_tool import BFCLEvaluationTool
-from .gaia_evaluation_tool import GAIAEvaluationTool
-from .llm_judge_tool import LLMJudgeTool
-from .win_rate_tool import WinRateTool
 
 __all__ = [
     "SearchTool",
     "CalculatorTool",
-    "MemoryTool",
-    "RAGTool",
-    "NoteTool",
-    "TerminalTool",
-    "MCPTool",
-    "A2ATool",
-    "ANPTool",
-    "BFCLEvaluationTool",
-    "GAIAEvaluationTool",
-    "LLMJudgeTool",
-    "WinRateTool",
 ]
+
+# 可选内置工具：依赖缺失时优雅跳过（不影响核心功能）
+try:
+    from .memory_tool import MemoryTool
+    __all__.append("MemoryTool")
+except ImportError:
+    pass
+
+try:
+    from .rag_tool import RAGTool
+    __all__.append("RAGTool")
+except ImportError:
+    pass
+
+try:
+    from .note_tool import NoteTool
+    __all__.append("NoteTool")
+except ImportError:
+    pass
+
+try:
+    from .terminal_tool import TerminalTool
+    __all__.append("TerminalTool")
+except ImportError:
+    pass
+
+try:
+    from .protocol_tools import MCPTool, A2ATool, ANPTool
+    __all__ += ["MCPTool", "A2ATool", "ANPTool"]
+except ImportError:
+    pass
+
+try:
+    from .bfcl_evaluation_tool import BFCLEvaluationTool
+    __all__.append("BFCLEvaluationTool")
+except ImportError:
+    pass
+
+try:
+    from .gaia_evaluation_tool import GAIAEvaluationTool
+    __all__.append("GAIAEvaluationTool")
+except ImportError:
+    pass
+
+try:
+    from .llm_judge_tool import LLMJudgeTool
+    __all__.append("LLMJudgeTool")
+except ImportError:
+    pass
+
+try:
+    from .win_rate_tool import WinRateTool
+    __all__.append("WinRateTool")
+except ImportError:
+    pass
