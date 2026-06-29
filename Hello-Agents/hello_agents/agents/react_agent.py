@@ -1,5 +1,17 @@
 """ReAct Agent实现 - 推理与行动结合的智能体"""
 
+# 允许直接 `python hello_agents/agents/react_agent.py` 运行：补齐包上下文，
+# 这样下面的相对导入（from ..core ...）在脚本模式下也能解析。
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(
+        0,
+        _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+    )
+    __package__ = "hello_agents.agents"
+
 import re
 from typing import Optional, List, Tuple
 from ..core.agent import Agent
@@ -220,3 +232,49 @@ class ReActAgent(Agent):
         """解析行动输入"""
         match = re.match(r"\w+\[(.*)\]", action_text)
         return match.group(1) if match else ""
+
+
+def _demo() -> int:
+    """冒烟测试：用本地 .env（Ollama）真实跑通 ReActAgent 的推理-行动循环。
+
+    运行方式（任选其一，均使用你本机 .env 里的 LLM/Ollama 配置）：
+        python hello_agents/agents/react_agent.py
+        python -m hello_agents.agents.react_agent
+    """
+    from dotenv import load_dotenv
+
+    from ..core.exceptions import HelloAgentsException
+    from ..tools import ToolRegistry
+    from ..tools.builtin.calculator import calculate
+    from ..tools.builtin.search_tool import search
+
+    load_dotenv()
+
+    try:
+        llm = HelloAgentsLLM()
+    except HelloAgentsException as e:
+        print("\n⚠️  无法创建 LLM，请先在 .env 配置 LLM_MODEL_ID / LLM_BASE_URL"
+              "（Ollama 可设 LLM_API_KEY=ollama）。")
+        print(f"    原始错误：{e}")
+        return 1
+
+    registry = ToolRegistry()
+    registry.register_function(
+        name="calculate",
+        description="执行数学计算，支持基本运算与常见数学函数。例如：15*23+45、sqrt(16)。",
+        func=calculate,
+    )
+    registry.register_function(
+        name="search",
+        description="网页搜索引擎。当需要时事或最新信息时使用。",
+        func=search,
+    )
+
+    agent = ReActAgent(name="ReAct演示", llm=llm, tool_registry=registry, max_steps=5)
+    answer = agent.run("请计算 15 * 23 + 45 等于多少？")
+    print(f"\n✅ ReActAgent 跑通，最终答案: {answer}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_demo())

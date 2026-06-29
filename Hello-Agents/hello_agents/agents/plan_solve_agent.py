@@ -1,5 +1,17 @@
 """Plan and Solve Agent实现 - 分解规划与逐步执行的智能体"""
 
+# 允许直接 `python hello_agents/agents/plan_solve_agent.py` 运行：补齐包上下文，
+# 这样下面的相对导入（from ..core ...）在脚本模式下也能解析。
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(
+        0,
+        _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+    )
+    __package__ = "hello_agents.agents"
+
 import ast
 from typing import Optional, List, Dict
 from ..core.agent import Agent
@@ -199,3 +211,34 @@ class PlanAndSolveAgent(Agent):
         self.add_message(Message(final_answer, "assistant"))
         
         return final_answer
+
+
+def _demo() -> int:
+    """冒烟测试：用本地 .env（Ollama）真实跑通 PlanAndSolveAgent 的规划-执行流程。
+
+    运行方式（任选其一，均使用你本机 .env 里的 LLM/Ollama 配置）：
+        python hello_agents/agents/plan_solve_agent.py
+        python -m hello_agents.agents.plan_solve_agent
+    """
+    from dotenv import load_dotenv
+
+    from ..core.exceptions import HelloAgentsException
+
+    load_dotenv()
+
+    try:
+        llm = HelloAgentsLLM()
+    except HelloAgentsException as e:
+        print("\n⚠️  无法创建 LLM，请先在 .env 配置 LLM_MODEL_ID / LLM_BASE_URL"
+              "（Ollama 可设 LLM_API_KEY=ollama）。")
+        print(f"    原始错误：{e}")
+        return 1
+
+    agent = PlanAndSolveAgent(name="规划助手", llm=llm)
+    answer = agent.run("一家商店上午卖出 23 件商品，下午卖出 45 件，每件 15 元，总销售额是多少？")
+    print(f"\n✅ PlanAndSolveAgent 跑通，最终答案: {answer}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_demo())
