@@ -1,7 +1,7 @@
 % !TEX program = xelatex
 % 中文简历 —— 人工智能 Agent / 大模型开发岗
 % 编译命令: xelatex resume.tex   (需 TeXLive + ctex + Noto/文泉驿 中文字体)
-\documentclass[10pt,a4paper]{article}
+\documentclass[9pt,a4paper]{article}
 
 % ---------- 中文支持 ----------
 \usepackage[UTF8,fontset=none]{ctex}
@@ -10,7 +10,7 @@
 \setmainfont{TeX Gyre Termes}
 
 % ---------- 页面与排版 ----------
-\usepackage[a4paper,top=1.4cm,bottom=1.4cm,left=1.6cm,right=1.6cm]{geometry}
+\usepackage[a4paper,top=1.0cm,bottom=1.0cm,left=1.4cm,right=1.4cm]{geometry}
 \usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{xcolor}
@@ -25,7 +25,7 @@
 \hypersetup{colorlinks=true,urlcolor=accent,linkcolor=accent}
 
 % 紧凑行距，保证一页 A4
-\linespread{1.02}
+\linespread{0.98}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0pt}
 
@@ -34,11 +34,11 @@
   {\color{primary}\large\bfseries\sffamily}
   {}{0em}
   {}[\vspace{1pt}{\color{rulegray}\titlerule[1pt]}]
-\titlespacing*{\section}{0pt}{8pt}{4pt}
+\titlespacing*{\section}{0pt}{5pt}{3pt}
 
 % 列表样式
 \newlist{tight}{itemize}{1}
-\setlist[tight]{leftmargin=1.2em,itemsep=1.5pt,topsep=2pt,parsep=0pt,label=\color{accent}\small$\bullet$}
+\setlist[tight]{leftmargin=1.1em,itemsep=1pt,topsep=1pt,parsep=0pt,label=\color{accent}\small$\bullet$}
 
 % 经历条目标题: 左标题 右日期
 \newcommand{\entry}[2]{%
@@ -72,40 +72,43 @@
 % ============ 专业技能 ============
 \section{专业技能}
 \begin{tight}
-  \item \textbf{大模型应用}：Prompt 工程、多轮对话管理、Function Calling、RAG 检索增强、SFT/LoRA 微调与评测。
-  \item \textbf{Agent 技术}：ReAct / Reflection / Plan-and-Solve 等推理范式，多智能体协作，意图识别、状态机与动态工作流编排。
-  \item \textbf{模型与推理}：OpenAI GPT-4o、Qwen 等开源模型，本地微调模型部署（Ollama / vLLM），向量检索（Milvus）。
-  \item \textbf{工程能力}：Python、FastAPI、PyTorch、Docker、Git；熟悉 RESTful 接口设计与异步并发。
+  \item \textbf{大模型与微调}：Transformer / 注意力机制原理；GPT-4o、Claude、Qwen2.5、DeepSeek、Llama3 等模型应用；SFT、LoRA / QLoRA 参数高效微调、DPO / RLHF 偏好对齐、量化（GPTQ / AWQ）与蒸馏；基于 LLaMA-Factory / PEFT 的训练流水线。
+  \item \textbf{Agent 与编排}：ReAct、Reflexion、Plan-and-Solve、Tree-of-Thoughts 等推理范式；Function Calling / Tool Use、ReWOO、Multi-Agent 协作（Planner-Worker-Solver）；LangGraph、LangChain、AutoGen、CrewAI 及自研有向图工作流引擎；MCP（Model Context Protocol）工具接入。
+  \item \textbf{RAG 与检索}：Naive / Advanced / Agentic RAG、GraphRAG；文档分块（语义切分）、bge-m3 / BGE-reranker 向量化与重排、HyDE、Query Rewrite、混合检索（BM25 + 向量）；Milvus、Qdrant、FAISS、Elasticsearch 向量库。
+  \item \textbf{推理与部署}：vLLM、Ollama、TGI 高吞吐推理；PagedAttention、KV-Cache、连续批处理、流式输出（SSE）；Prompt 缓存与并发限流。
+  \item \textbf{工程栈}：Python、FastAPI、PyTorch、asyncio、Redis、PostgreSQL、Docker、Git / CI；RESTful / WebSocket 接口设计、可观测性（Trace / 日志）与单元测试。
 \end{tight}
 
 % ============ 实习经历 ============
 \section{实习经历}
-\entry{XX 科技有限公司 \quad 大模型算法实习生}{2024.06 -- 2024.12}
-\subentry{项目：基于大模型与意图识别的 Agent 交互式专利检索系统}
+\entry{XX 科技有限公司 \quad 大模型算法实习生（AI Agent 方向）}{2024.06 -- 2024.12}
+\subentry{项目：基于大模型与意图识别的 Agent 交互式专利检索系统（FastAPI · Milvus · 微调模型 · LangGraph 思想）}
 \begin{tight}
-  \item 设计并落地\textbf{三级 Fallback 意图识别流水线}（规则匹配 → 远程微调模型 → OpenAI 兜底），统一输出二级意图结构，使意图\textbf{命中率提高 60\% 左右}。
-  \item 构建\textbf{意图状态机}进行多轮上下文消歧，解决"补充条件被误判为反馈"等场景，多轮对话意图准确率显著提升。
-  \item 以规则层（关键词 + 正则）优先命中高频意图，配合远程 GPU 微调模型异步调用，将平均\textbf{响应速度提升 40\% 以上}（毫秒级命中替代秒级 API 调用）。
-  \item 自研\textbf{动态工作流引擎}（节点 + 路由 + 共享状态 + 执行 Trace）替代 if-else 硬编码，新增处理步骤仅需 3 行代码，显著降低维护成本。
-  \item 基于 FastAPI 实现聊天 Web 服务与实时状态面板，对接 Milvus 完成专利检索与结构化回复生成。
+  \item 主导设计\textbf{三级 Fallback 意图识别流水线}——「规则匹配（关键词 + 正则）→ 领域微调模型（基于 Qwen 做 SFT/LoRA 的二级意图分类器）→ GPT-4o 兜底」，统一约束输出 \texttt{\{level1:[level2]\}} 结构化 Schema 并做格式校验与自动重试，使意图\textbf{命中率提高 60\% 左右}。
+  \item 设计\textbf{意图状态机（IntentStateMachine）}实现多轮上下文消歧，以「（当前状态, 原始意图）→（新状态, 修正动作）」转移表解决「补充检索条件被误判为反馈/修改」等歧义场景，多轮对话意图准确率显著提升、追问轮次明显下降。
+  \item 通过规则层毫秒级命中高频意图、远程 GPU 微调模型 \textbf{异步并发}调用、并对意图与 Embedding 结果做缓存，将平均\textbf{响应速度提升 40\% 以上}（以本地命中替代秒级 LLM API 往返），同时降低 Token 成本。
+  \item 自研\textbf{动态工作流引擎}（Node + Router + 共享 State + 执行 Trace 的有向图编排），以 11 个节点 / 5 条路由替代 if-else 硬编码，新增处理步骤仅需约 3 行代码，显著提升可维护性与可观测性。
+  \item 构建\textbf{实体抽取与槽位记忆}模块（专利号正则 + 技术领域词典 + LLM 补全缺失槽位）与完整性评估节点，自动追问引导用户补全检索条件后再确认执行。
+  \item 基于 \textbf{FastAPI} 实现聊天 Web 服务、实时状态面板与 SSE 流式回复，对接 \textbf{Milvus} 向量检索完成专利召回、重排与结构化报告生成。
 \end{tight}
 
 % ============ 项目经历 ============
 \section{项目经历}
 \entry{HelloAgents 轻量级多智能体框架 \quad 核心开发}{2025.01 -- 2025.04}
-\subentry{技术栈：Python · OpenAI 兼容 API · RAG · 强化学习 · MCP 协议}
+\subentry{技术栈：Python · OpenAI 兼容 API · RAG · 强化学习 · MCP 协议 · ModelScope / Ollama}
 \begin{tight}
-  \item 基于"一切皆为工具"的设计理念，从零实现 \textbf{ReAct / Reflection / Plan-and-Solve} 等多种 Agent 范式与统一的 LLM / Message / Config 抽象。
-  \item 将 Memory、RAG、RL、MCP 协议统一抽象为 Tools，简化调用链路；引入检索缓存与并发优化，端到端\textbf{推理速度提升 40\% 以上}。
-  \item 搭建智能体评测模块，针对工具调用与问答任务持续迭代，使任务\textbf{命中率提高 60\% 左右}，并完善单元测试与示例文档。
-  \item 支持 ModelScope / Ollama 等多 provider 自动检测与流式输出，提供从基础对话到复杂推理的完整范式实现。
+  \item 基于「一切皆为工具（Everything-as-Tools）」的设计理念从零构建多智能体框架，抽象统一的 \texttt{LLM / Message / Config} 内核，并实现 \textbf{ReAct、Reflection、Plan-and-Solve} 等多种 Agent 推理范式。
+  \item 将 \textbf{Memory（短期/长期记忆）、RAG、强化学习（RL）、MCP 协议}统一抽象为可插拔 Tools，消除冗余抽象层；引入检索缓存、上下文工程（Context Engineering）与并发调度，端到端\textbf{推理速度提升 40\% 以上}。
+  \item 搭建 \textbf{Agent 评测（Evaluation）}模块，对工具调用准确率与问答任务做指标化迭代（含 ReAct 轨迹分析），使任务\textbf{命中率提高 60\% 左右}，并完善单元测试、conftest 与示例脚本。
+  \item 实现 \textbf{多 Provider 自动检测}（OpenAI / ModelScope / Ollama）与 \textbf{流式输出（stream\_run）}，支持本地与云端模型无缝切换；编写第七章「构建你的智能体框架」配套教程与 API 文档。
 \end{tight}
 
-% ============ 自我评价 / 其他 ============
-\section{其他}
+% ============ 校园/个人项目 ============
+\section{其他项目与能力}
 \begin{tight}
-  \item 持续跟进大模型与 Agent 前沿（LangGraph、MCP、RAG 优化等），具备较强的工程落地与快速学习能力。
-  \item 英语 CET-6，可流畅阅读英文技术文档与论文。
+  \item \textbf{企业知识库问答（RAG）}：基于 bge-m3 向量化 + BGE-reranker 重排 + Milvus 的混合检索问答，结合 HyDE 与 Query Rewrite 优化召回，缓解大模型幻觉。
+  \item 持续跟进大模型与 Agent 前沿（LangGraph、MCP、Agentic RAG、GraphRAG、DPO 对齐等），具备扎实的工程落地与快速学习能力。
+  \item 英语 CET-6，可流畅阅读英文技术文档与前沿论文（arXiv）。
 \end{tight}
 
 \end{document}
