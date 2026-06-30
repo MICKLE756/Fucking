@@ -27,6 +27,34 @@ class Agent(ABC):
         # 可选的异步生命周期钩子：每次发生事件时被 await 调用
         self.on_event: LifecycleHook = on_event
 
+    def _llm_kwargs(self, kwargs: dict) -> dict:
+        """把 self.config 的采样参数注入 LLM 调用参数。
+
+        优先级：显式传入的 kwargs > config > LLM 自身默认。
+        - temperature/max_tokens 仅在调用方未显式指定、且 config 中有值时注入。
+        命中 debug 时打印一次最终生效的采样参数。
+        """
+        merged = dict(kwargs)
+        if self.config is not None:
+            if "temperature" not in merged and self.config.temperature is not None:
+                merged["temperature"] = self.config.temperature
+            if "max_tokens" not in merged and self.config.max_tokens is not None:
+                merged["max_tokens"] = self.config.max_tokens
+        self._debug(
+            "LLM 采样参数",
+            f"temperature={merged.get('temperature', self.llm.temperature)}, "
+            f"max_tokens={merged.get('max_tokens', self.llm.max_tokens)}",
+        )
+        return merged
+
+    def _debug(self, label: str, content: str = "") -> None:
+        """config.debug 为真时打印诊断信息，否则静默。"""
+        if getattr(self.config, "debug", False):
+            line = f"🐞 [debug:{self.name}] {label}"
+            if content:
+                line += f"\n{content}"
+            print(line)
+
     @abstractmethod
     def run(self, input_text: str, **kwargs) -> str:
         """运行Agent（同步）"""

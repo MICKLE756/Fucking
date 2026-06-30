@@ -324,6 +324,9 @@ class ToolAwareSimpleAgent(SimpleAgent):
         Yields:
             生成的文本片段
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用
+        kwargs = self._llm_kwargs(kwargs)
+
         messages: list[dict[str, Any]] = []
         enhanced_system_prompt = self._get_enhanced_system_prompt()
         messages.append({"role": "system", "content": enhanced_system_prompt})

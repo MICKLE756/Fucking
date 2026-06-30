@@ -188,6 +188,10 @@ class PlanAndSolveAgent(Agent):
         Returns:
             最终答案
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用，
+        # 随 kwargs 透传给 Planner / Executor 的 llm.invoke。
+        kwargs = self._llm_kwargs(kwargs)
+
         print(f"\n🤖 {self.name} 开始处理问题: {input_text}")
         
         # 1. 生成计划

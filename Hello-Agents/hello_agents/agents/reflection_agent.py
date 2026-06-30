@@ -137,6 +137,9 @@ class ReflectionAgent(Agent):
         Returns:
             最终优化后的结果
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用
+        kwargs = self._llm_kwargs(kwargs)
+
         print(f"\n🤖 {self.name} 开始处理任务: {input_text}")
 
         # 重置记忆
