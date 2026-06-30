@@ -6,7 +6,7 @@ import asyncio
 import threading
 import queue
 from typing import Literal, Optional, Iterator, List, Dict, Union, AsyncIterator
-from openai import OpenAI
+from openai import OpenAI, APIConnectionError, APITimeoutError, APIStatusError
 
 from .exceptions import HelloAgentsException
 from .llm_response import LLMResponse, StreamStats, ToolCall, LLMToolResponse
@@ -67,6 +67,11 @@ class HelloAgentsLLM:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout or int(os.getenv("LLM_TIMEOUT", "60"))
+        # 瞬时错误的自动重试配置（可用环境变量覆盖）。
+        # 中转/聚合网关在并发或上游抖动时常把本应 429/5xx 的情况误报成 401，
+        # 而 OpenAI SDK 默认不会重试 401，所以这里自带一层退避重试兜底。
+        self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        self.retry_backoff = float(os.getenv("LLM_RETRY_BACKOFF", "0.5"))
         self.kwargs = kwargs
 
         # 自动检测provider或使用指定的provider
@@ -243,6 +248,42 @@ class HelloAgentsLLM:
             base_url=self.base_url,
             timeout=self.timeout
         )
+
+    # 视为瞬时、可重试的 HTTP 状态码。
+    # 含 401：中转网关在抖动/并发时常把有效 token 误报成 401（OpenAI SDK 默认不重试 401）。
+    _RETRYABLE_STATUS = frozenset({401, 408, 409, 425, 429, 500, 502, 503, 504})
+
+    def _is_retryable(self, exc: Exception) -> bool:
+        """判断异常是否属于可重试的瞬时错误（网络/超时/特定状态码）。"""
+        if isinstance(exc, (APIConnectionError, APITimeoutError)):
+            return True
+        status = getattr(exc, "status_code", None)
+        if status is None and isinstance(exc, APIStatusError):
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+        return status in self._RETRYABLE_STATUS
+
+    def _create(self, **params):
+        """调用 chat.completions.create，对瞬时错误做指数退避重试。
+
+        重试上限 self.max_retries，退避 self.retry_backoff * 2**(n-1) 秒。
+        非瞬时错误（如参数错误、模型不存在）或重试用尽后，原样抛出由上层包装。
+        """
+        attempt = 0
+        while True:
+            try:
+                return self._client.chat.completions.create(**params)
+            except Exception as e:
+                attempt += 1
+                if attempt > self.max_retries or not self._is_retryable(e):
+                    raise
+                delay = self.retry_backoff * (2 ** (attempt - 1))
+                status = getattr(e, "status_code", None)
+                print(
+                    f"⚠️ LLM 调用瞬时失败"
+                    f"（{'HTTP ' + str(status) if status else type(e).__name__}），"
+                    f"第 {attempt}/{self.max_retries} 次重试，{delay:.1f}s 后…"
+                )
+                time.sleep(delay)
     
     def _get_default_model(self) -> str:
         """获取默认模型"""
@@ -303,7 +344,7 @@ class HelloAgentsLLM:
         """
         print(f"🧠 正在调用 {self.model} 模型...")
         try:
-            response = self._client.chat.completions.create(
+            response = self._create(
                 model=self.model,
                 messages=messages,
                 temperature=temperature if temperature is not None else self.temperature,
@@ -330,7 +371,7 @@ class HelloAgentsLLM:
         适用于不需要流式输出的场景。
         """
         try:
-            response = self._client.chat.completions.create(
+            response = self._create(
                 model=self.model,
                 messages=messages,
                 temperature=kwargs.get('temperature', self.temperature),
@@ -359,7 +400,7 @@ class HelloAgentsLLM:
         """
         start = time.time()
         try:
-            response = self._client.chat.completions.create(
+            response = self._create(
                 model=self.model,
                 messages=messages,
                 temperature=kwargs.get('temperature', self.temperature),
@@ -409,7 +450,7 @@ class HelloAgentsLLM:
         """
         start = time.time()
         try:
-            response = self._client.chat.completions.create(
+            response = self._create(
                 model=self.model,
                 messages=messages,
                 tools=tools,
