@@ -1,0 +1,111 @@
+% !TEX program = xelatex
+% 中文简历 —— 人工智能 Agent / 大模型开发岗
+% 编译命令: xelatex resume.tex   (需 TeXLive + ctex + Noto/文泉驿 中文字体)
+\documentclass[10pt,a4paper]{article}
+
+% ---------- 中文支持 ----------
+\usepackage[UTF8,fontset=none]{ctex}
+\setCJKmainfont{Noto Serif CJK SC}[BoldFont=Noto Sans CJK SC Bold]
+\setCJKsansfont{Noto Sans CJK SC}
+\setmainfont{TeX Gyre Termes}
+
+% ---------- 页面与排版 ----------
+\usepackage[a4paper,top=1.4cm,bottom=1.4cm,left=1.6cm,right=1.6cm]{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tabularx}
+\usepackage{array}
+
+\definecolor{primary}{HTML}{1F3A5F}
+\definecolor{accent}{HTML}{2C6E91}
+\definecolor{rulegray}{HTML}{9AA5B1}
+
+\hypersetup{colorlinks=true,urlcolor=accent,linkcolor=accent}
+
+% 紧凑行距，保证一页 A4
+\linespread{1.02}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+
+% ---------- 章节标题样式 ----------
+\titleformat{\section}
+  {\color{primary}\large\bfseries\sffamily}
+  {}{0em}
+  {}[\vspace{1pt}{\color{rulegray}\titlerule[1pt]}]
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+
+% 列表样式
+\newlist{tight}{itemize}{1}
+\setlist[tight]{leftmargin=1.2em,itemsep=1.5pt,topsep=2pt,parsep=0pt,label=\color{accent}\small$\bullet$}
+
+% 经历条目标题: 左标题 右日期
+\newcommand{\entry}[2]{%
+  \par\vspace{2pt}%
+  \begin{tabularx}{\textwidth}{@{}X@{}r@{}}
+    \textbf{#1} & {\color{rulegray}\small #2}
+  \end{tabularx}%
+  \par}
+% 副标题(角色/技术栈)
+\newcommand{\subentry}[1]{{\color{accent}\small\itshape #1}\par\vspace{1pt}}
+
+\begin{document}
+
+% ============ 个人信息 ============
+\begin{center}
+  {\Huge\bfseries\sffamily\color{primary} 姓\,名}\\[4pt]
+  {\color{accent}\sffamily 求职意向：人工智能 Agent / 大模型开发工程师}\\[5pt]
+  \small
+  电话：138-0000-0000 \quad$\vert$\quad
+  邮箱：\href{mailto:your_email@example.com}{your\_email@example.com} \quad$\vert$\quad
+  GitHub：\href{https://github.com/}{github.com/yourname} \quad$\vert$\quad
+  城市：所在城市
+\end{center}
+\vspace{2pt}
+
+% ============ 教育背景 ============
+\section{教育背景}
+\entry{XX 大学 \quad 计算机科学与技术（本科 / 硕士）}{2021.09 -- 2025.06}
+\subentry{主修：数据结构、机器学习、深度学习、自然语言处理；GPA X.X/4.0（前 X\%）}
+
+% ============ 专业技能 ============
+\section{专业技能}
+\begin{tight}
+  \item \textbf{大模型应用}：Prompt 工程、多轮对话管理、Function Calling、RAG 检索增强、SFT/LoRA 微调与评测。
+  \item \textbf{Agent 技术}：ReAct / Reflection / Plan-and-Solve 等推理范式，多智能体协作，意图识别、状态机与动态工作流编排。
+  \item \textbf{模型与推理}：OpenAI GPT-4o、Qwen 等开源模型，本地微调模型部署（Ollama / vLLM），向量检索（Milvus）。
+  \item \textbf{工程能力}：Python、FastAPI、PyTorch、Docker、Git；熟悉 RESTful 接口设计与异步并发。
+\end{tight}
+
+% ============ 实习经历 ============
+\section{实习经历}
+\entry{XX 科技有限公司 \quad 大模型算法实习生}{2024.06 -- 2024.12}
+\subentry{项目：基于大模型与意图识别的 Agent 交互式专利检索系统}
+\begin{tight}
+  \item 设计并落地\textbf{三级 Fallback 意图识别流水线}（规则匹配 → 远程微调模型 → OpenAI 兜底），统一输出二级意图结构，使意图\textbf{命中率提高 60\% 左右}。
+  \item 构建\textbf{意图状态机}进行多轮上下文消歧，解决"补充条件被误判为反馈"等场景，多轮对话意图准确率显著提升。
+  \item 以规则层（关键词 + 正则）优先命中高频意图，配合远程 GPU 微调模型异步调用，将平均\textbf{响应速度提升 40\% 以上}（毫秒级命中替代秒级 API 调用）。
+  \item 自研\textbf{动态工作流引擎}（节点 + 路由 + 共享状态 + 执行 Trace）替代 if-else 硬编码，新增处理步骤仅需 3 行代码，显著降低维护成本。
+  \item 基于 FastAPI 实现聊天 Web 服务与实时状态面板，对接 Milvus 完成专利检索与结构化回复生成。
+\end{tight}
+
+% ============ 项目经历 ============
+\section{项目经历}
+\entry{HelloAgents 轻量级多智能体框架 \quad 核心开发}{2025.01 -- 2025.04}
+\subentry{技术栈：Python · OpenAI 兼容 API · RAG · 强化学习 · MCP 协议}
+\begin{tight}
+  \item 基于"一切皆为工具"的设计理念，从零实现 \textbf{ReAct / Reflection / Plan-and-Solve} 等多种 Agent 范式与统一的 LLM / Message / Config 抽象。
+  \item 将 Memory、RAG、RL、MCP 协议统一抽象为 Tools，简化调用链路；引入检索缓存与并发优化，端到端\textbf{推理速度提升 40\% 以上}。
+  \item 搭建智能体评测模块，针对工具调用与问答任务持续迭代，使任务\textbf{命中率提高 60\% 左右}，并完善单元测试与示例文档。
+  \item 支持 ModelScope / Ollama 等多 provider 自动检测与流式输出，提供从基础对话到复杂推理的完整范式实现。
+\end{tight}
+
+% ============ 自我评价 / 其他 ============
+\section{其他}
+\begin{tight}
+  \item 持续跟进大模型与 Agent 前沿（LangGraph、MCP、RAG 优化等），具备较强的工程落地与快速学习能力。
+  \item 英语 CET-6，可流畅阅读英文技术文档与论文。
+\end{tight}
+
+\end{document}
