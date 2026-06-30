@@ -268,6 +268,9 @@ class SimpleAgent(Agent):
         Returns:
             Agent响应
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用
+        kwargs = self._llm_kwargs(kwargs)
+
         # 构建消息列表
         messages = []
         
@@ -385,6 +388,9 @@ class SimpleAgent(Agent):
         Yields:
             Agent响应片段
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用
+        kwargs = self._llm_kwargs(kwargs)
+
         # 构建消息列表
         messages = []
         

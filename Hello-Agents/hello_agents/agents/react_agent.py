@@ -139,6 +139,9 @@ class ReActAgent(Agent):
         Returns:
             最终答案
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用
+        kwargs = self._llm_kwargs(kwargs)
+
         self.current_history = []
         current_step = 0
         

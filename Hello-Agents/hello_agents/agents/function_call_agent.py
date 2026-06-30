@@ -265,6 +265,9 @@ class FunctionCallAgent(Agent):
         """
         执行函数调用范式的对话流程
         """
+        # 把 config 的采样参数(temperature/max_tokens)接入本次 LLM 调用
+        kwargs = self._llm_kwargs(kwargs)
+
         messages: list[dict[str, Any]] = []
         system_prompt = self._get_system_prompt()
         messages.append({"role": "system", "content": system_prompt})
