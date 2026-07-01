@@ -43,7 +43,7 @@ from typing import Dict, Any, List, Optional
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from hello_agents.tools.builtin.rl_training_tool import RLTrainingTool
+from hello_agents.tools import RLTrainingTool
 
 
 # ============================================================================

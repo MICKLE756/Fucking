@@ -24,11 +24,8 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
-from hello_agents.agents.simple_agent import SimpleAgent
-from hello_agents.core.llm import HelloAgentsLLM
-from hello_agents.tools.registry import ToolRegistry
-from hello_agents.tools.builtin.memory_tool import MemoryTool
-from hello_agents.tools.builtin.rag_tool import RAGTool
+from hello_agents import SimpleAgent, HelloAgentsLLM, ToolRegistry
+from hello_agents.tools import MemoryTool, RAGTool
 
 
 def demo_simple_agent_with_memory():

@@ -399,8 +399,7 @@ def lesson_1_5_mcp_in_helloagents():
     print_lesson("1.5", "在 HelloAgents 中集成 MCP")
     
     integration_code = '''
-from hello_agents.agents.simple_agent import SimpleAgent
-from hello_agents.core.llm import HelloAgentsLLM
+from hello_agents import SimpleAgent, HelloAgentsLLM
 from hello_agents.tools.builtin.protocol_tools import MCPTool
 
 # 创建智能体
@@ -1066,8 +1065,7 @@ def lesson_4_3_combination_strategies():
 
     combination_code = '''
 # 多协议集成示例
-from hello_agents.agents.simple_agent import SimpleAgent
-from hello_agents.core.llm import HelloAgentsLLM
+from hello_agents import SimpleAgent, HelloAgentsLLM
 from hello_agents.tools.builtin.protocol_tools import MCPTool, A2ATool
 
 # 创建智能体
