@@ -5,24 +5,48 @@
 - 暴露 get_text_embedder()/get_dimension()/refresh_embedder() 供各记忆类型统一使用。
 - 通过环境变量优先级：dashscope > local > tfidf。
 
-环境变量：
+环境变量（全部由 .env 提供，代码不写死模型名）：
 - EMBED_MODEL_TYPE: "dashscope" | "local" | "tfidf"（默认 dashscope）
-- EMBED_MODEL_NAME: 模型名称（dashscope默认 text-embedding-v3；local默认 sentence-transformers/all-MiniLM-L6-v2）
-- EMBED_API_KEY: Embedding API Key（统一命名）
-- EMBED_BASE_URL: Embedding Base URL（统一命名，可选）
+- EMBED_MODEL_NAME: 模型名称或本地目录路径（如 C:/Files/Models/bge-base-zh-v1.5）
+- EMBED_API_KEY:   Embedding API Key（统一命名）
+- EMBED_BASE_URL:  Embedding Base URL（统一命名，可选）
 """
 
 from typing import List, Union, Optional
 import threading
 import os
+
 import numpy as np
 from dotenv import load_dotenv
 
+# 可选依赖统一在文件顶部导入；缺失时置为 None，运行到对应后端时再报错
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - 取决于环境是否安装
+    SentenceTransformer = None
+
+try:
+    from transformers import AutoTokenizer, AutoModel
+    import torch
+except Exception:  # pragma: no cover
+    AutoTokenizer = None
+    AutoModel = None
+    torch = None
+
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+except Exception:  # pragma: no cover
+    TfidfVectorizer = None
+
+try:
+    import requests
+except Exception:  # pragma: no cover
+    requests = None
+
 load_dotenv()
 
-from sentence_transformers import SentenceTransformer
-from transformers import AutoTokenizer, AutoModel
-import torch
+# bge-zh 系列官方建议：仅对「检索查询」加这个指令前缀，文档/段落不加
+_BGE_ZH_QUERY_INSTRUCTION = "为这个句子生成表示以用于检索相关文章："
 
 
 # ==============
@@ -40,24 +64,16 @@ class EmbeddingModel:
         raise NotImplementedError
 
 
-# bge-zh 系列官方建议：仅对「检索查询」加这个指令前缀，文档/段落不加
-_BGE_ZH_QUERY_INSTRUCTION = "为这个句子生成表示以用于检索相关文章："
-
-
 class LocalTransformerEmbedding(EmbeddingModel):
-    """本地Transformer嵌入（默认 BAAI/bge-base-zh-v1.5）
+    """本地Transformer嵌入
 
-    - 优先 sentence-transformers，缺失回退 transformers+torch
-    - 向量统一做 L2 归一化（bge 用余弦相似度的前提）
-    - 对 bge 模型的检索查询自动加指令前缀（仅 query，文档不加）
+    - 模型名称 / 本地目录路径由调用方（工厂读取 .env）传入，不在此写死默认值。
+    - 优先 sentence-transformers，缺失回退 transformers+torch。
+    - 向量统一做 L2 归一化（bge 用余弦相似度的前提）。
+    - 对 bge 模型的检索查询自动加指令前缀（仅 query，文档不加）。
     """
 
-    def __init__(
-        self,
-        model_name: str = "BAAI/bge-base-zh-v1.5",
-        normalize: bool = True,
-        query_instruction: Optional[str] = None,
-    ):
+    def __init__(self, model_name, normalize=True, query_instruction=None):
         self.model_name = model_name
         self.normalize = normalize
         # 仅 bge 系列默认启用查询指令；非 bge 不加。可用 query_instruction 显式覆盖
@@ -76,36 +92,38 @@ class LocalTransformerEmbedding(EmbeddingModel):
 
     def _load_backend(self):
         # 优先 sentence-transformers（支持本地目录路径或 HF 模型名）
-        try:
-            self._st_model = SentenceTransformer(self.model_name)
-            test_vec = self._st_model.encode(
-                "test_text", normalize_embeddings=self.normalize
-            )
-            self._dimension = len(test_vec)
-            self._backend = "st"
-            return
-        except Exception:
-            self._st_model = None
+        if SentenceTransformer is not None:
+            try:
+                self._st_model = SentenceTransformer(self.model_name)
+                test_vec = self._st_model.encode(
+                    "test_text", normalize_embeddings=self.normalize
+                )
+                self._dimension = len(test_vec)
+                self._backend = "st"
+                return
+            except Exception:
+                self._st_model = None
 
         # 回退 transformers + torch（mean pooling）
-        try:
-            self._hf_tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self._hf_model = AutoModel.from_pretrained(self.model_name)
-            self._hf_model.eval()
-            with torch.no_grad():
-                inputs = self._hf_tokenizer(
-                    "test_text", return_tensors="pt", padding=True, truncation=True
-                )
-                outputs = self._hf_model(**inputs)
-                test_embedding = self._mean_pool(
-                    outputs.last_hidden_state, inputs["attention_mask"]
-                )
-                self._dimension = int(test_embedding.shape[1])
-            self._backend = "hf"
-            return
-        except Exception:
-            self._hf_tokenizer = None
-            self._hf_model = None
+        if AutoTokenizer is not None and AutoModel is not None and torch is not None:
+            try:
+                self._hf_tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self._hf_model = AutoModel.from_pretrained(self.model_name)
+                self._hf_model.eval()
+                with torch.no_grad():
+                    inputs = self._hf_tokenizer(
+                        "test_text", return_tensors="pt", padding=True, truncation=True
+                    )
+                    outputs = self._hf_model(**inputs)
+                    test_embedding = self._mean_pool(
+                        outputs.last_hidden_state, inputs["attention_mask"]
+                    )
+                    self._dimension = int(test_embedding.shape[1])
+                self._backend = "hf"
+                return
+            except Exception:
+                self._hf_tokenizer = None
+                self._hf_model = None
 
         raise ImportError("未找到可用的本地嵌入后端，请安装 sentence-transformers 或 transformers+torch")
 
@@ -130,9 +148,7 @@ class LocalTransformerEmbedding(EmbeddingModel):
             inputs = [self.query_instruction + t for t in inputs]
 
         if self._backend == "st":
-            vecs = self._st_model.encode(
-                inputs, normalize_embeddings=self.normalize
-            )
+            vecs = self._st_model.encode(inputs, normalize_embeddings=self.normalize)
             vecs = [v for v in vecs]
         else:
             tokenized = self._hf_tokenizer(
@@ -168,11 +184,9 @@ class TFIDFEmbedding(EmbeddingModel):
         self._init_vectorizer()
 
     def _init_vectorizer(self):
-        try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            self._vectorizer = TfidfVectorizer(max_features=self.max_features, stop_words='english')
-        except ImportError:
+        if TfidfVectorizer is None:
             raise ImportError("请安装 scikit-learn: pip install scikit-learn")
+        self._vectorizer = TfidfVectorizer(max_features=self.max_features, stop_words='english')
 
     def fit(self, texts: List[str]):
         self._vectorizer.fit(texts)
@@ -197,15 +211,17 @@ class TFIDFEmbedding(EmbeddingModel):
     def dimension(self) -> int:
         return self._dimension
 
+
 class DashScopeEmbedding(EmbeddingModel):
     """阿里云 DashScope（通义千问）Embedding / OpenAI兼容REST 模式
 
     行为：
     - 如提供 base_url，则优先使用 OpenAI 兼容的 REST 接口（POST {base_url}/embeddings）。
     - 否则使用官方 dashscope SDK 的 TextEmbedding.call。
+    - 模型名称由调用方（工厂读取 .env）传入，不在此写死默认值。
     """
 
-    def __init__(self, model_name: str = "text-embedding-v3", api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, model_name, api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.model_name = model_name
         self.api_key = api_key
         self.base_url = base_url
@@ -236,7 +252,8 @@ class DashScopeEmbedding(EmbeddingModel):
 
         # REST 模式（OpenAI兼容）
         if self.base_url:
-            import requests
+            if requests is None:
+                raise ImportError("请安装 requests: pip install requests")
             url = self.base_url.rstrip("/") + "/embeddings"
             headers = {
                 "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
@@ -282,13 +299,89 @@ def create_embedding_model(model_type: str = "local", **kwargs) -> EmbeddingMode
     """创建嵌入模型实例
 
     model_type: "dashscope" | "local" | "tfidf"
-    kwargs: model_name, api_key
+    kwargs: model_name, api_key, base_url
     """
     if model_type in ("local", "sentence_transformer", "huggingface"):
         return LocalTransformerEmbedding(**kwargs)
     elif model_type == "dashscope":
         return DashScopeEmbedding(**kwargs)
     elif model_type == "tfidf":
-        return TFIDFEmbedding(**kwargs)
+        # TF-IDF 不接受 model_name/api_key 等参数，过滤掉
+        return TFIDFEmbedding(max_features=int(kwargs.get("max_features", 1000)))
     else:
         raise ValueError(f"不支持的模型类型: {model_type}")
+
+
+def create_embedding_model_with_fallback(preferred_type: str = "dashscope", **kwargs) -> EmbeddingModel:
+    """带回退的创建：dashscope -> local -> tfidf"""
+    if preferred_type in ("sentence_transformer", "huggingface"):
+        preferred_type = "local"
+    fallback = ["dashscope", "local", "tfidf"]
+    # 将首选放最前
+    if preferred_type in fallback:
+        fallback.remove(preferred_type)
+        fallback.insert(0, preferred_type)
+    for t in fallback:
+        try:
+            return create_embedding_model(t, **kwargs)
+        except Exception:
+            continue
+    raise RuntimeError("所有嵌入模型都不可用，请安装依赖或检查配置")
+
+
+# ==================
+# Provider（单例）
+# ==================
+
+_lock = threading.RLock()
+_embedder: Optional[EmbeddingModel] = None
+
+# 各提供商在 .env 未显式指定 EMBED_MODEL_NAME 时的兜底模型名
+_DEFAULT_MODEL_BY_TYPE = {
+    "dashscope": "text-embedding-v3",
+    "local": "BAAI/bge-base-zh-v1.5",
+}
+
+
+def _build_embedder() -> EmbeddingModel:
+    """完全依据 .env 构建嵌入实例（模型名不写死在类里）。"""
+    preferred = os.getenv("EMBED_MODEL_TYPE", "dashscope").strip()
+    default_model = _DEFAULT_MODEL_BY_TYPE.get(preferred, _DEFAULT_MODEL_BY_TYPE["local"])
+    model_name = os.getenv("EMBED_MODEL_NAME", default_model).strip()
+    kwargs = {}
+    if model_name:
+        kwargs["model_name"] = model_name
+    api_key = os.getenv("EMBED_API_KEY")
+    if api_key:
+        kwargs["api_key"] = api_key
+    base_url = os.getenv("EMBED_BASE_URL")
+    if base_url:
+        kwargs["base_url"] = base_url
+    return create_embedding_model_with_fallback(preferred_type=preferred, **kwargs)
+
+
+def get_text_embedder() -> EmbeddingModel:
+    """获取全局共享的文本嵌入实例（线程安全单例）"""
+    global _embedder
+    if _embedder is not None:
+        return _embedder
+    with _lock:
+        if _embedder is None:
+            _embedder = _build_embedder()
+        return _embedder
+
+
+def get_dimension(default: int = 384) -> int:
+    """获取统一向量维度（失败回退默认值）"""
+    try:
+        return int(getattr(get_text_embedder(), "dimension", default))
+    except Exception:
+        return int(default)
+
+
+def refresh_embedder() -> EmbeddingModel:
+    """强制重建嵌入实例（可用于动态切换环境变量）"""
+    global _embedder
+    with _lock:
+        _embedder = _build_embedder()
+        return _embedder
