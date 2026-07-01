@@ -1,0 +1,573 @@
+"""HelloAgents统一LLM接口 - 基于OpenAI原生API"""
+import asyncio
+import os
+import queue
+import threading
+import time
+from typing import Literal, Optional, Iterator, List, Dict, Union, AsyncIterator
+from openai import OpenAI
+from hello_agents.core.exceptions import HelloAgentsException
+from hello_agents.core.llm_response import LLMResponse, LLMToolResponse, ToolCall, StreamStats
+from openai import OpenAI, APIConnectionError, APITimeoutError, APIStatusError
+
+# 支持的LLM提供商
+SUPPORTED_PROVIDERS = Literal[
+    "openai",
+    "deepseek",
+    "qwen",
+    "modelscope",
+    "kimi",
+    "zhipu",
+    "ollama",
+    "vllm",
+    "local",
+    "auto",
+    "custom",
+]
+
+class HelloAgentsLLM:
+    """
+       为HelloAgents定制的LLM客户端。
+       它用于调用任何兼容OpenAI接口的服务，并默认使用流式响应。
+
+       设计理念：
+       - 参数优先，环境变量兜底
+       - 流式响应为默认，提供更好的用户体验
+       - 支持多种LLM提供商
+       - 统一的调用接口
+       """
+
+    def __init__(
+            self,
+            model: Optional[str] = None,
+            api_key: Optional[str] = None,
+            base_url: Optional[str] = None,
+            provider: Optional[SUPPORTED_PROVIDERS] = None,
+            temperature: float = 0.7,
+            max_tokens: Optional[int] = None,
+            timeout: Optional[int] = None,
+            **kwargs
+    ):
+        """
+               初始化客户端。优先使用传入参数，如果未提供，则从环境变量加载。
+               支持自动检测provider或使用统一的LLM_*环境变量配置。
+
+               Args:
+                   model: 模型名称，如果未提供则从环境变量LLM_MODEL_ID读取
+                   api_key: API密钥，如果未提供则从环境变量读取
+                   base_url: 服务地址，如果未提供则从环境变量LLM_BASE_URL读取
+                   provider: LLM提供商，如果未提供则自动检测
+                   temperature: 温度参数
+                   max_tokens: 最大token数
+                   timeout: 超时时间，从环境变量LLM_TIMEOUT读取，默认60秒
+               """
+        # 优先使用传入参数，如果未提供，则从环境变量加载
+
+        self.model = model or os.getenv("LLM_MODEL_ID")
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.timeout = timeout or int(os.getenv("LLM_TIMEOUT", "60"))
+        # 瞬时错误的自动重试配置（可用环境变量覆盖）。
+        # 中转/聚合网关在并发或上游抖动时常把本应 429/5xx 的情况误报成 401，
+        # 而 OpenAI SDK 默认不会重试 401，所以这里自带一层退避重试兜底。
+        self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        self.retry_backoff = float(os.getenv("LLM_RETRY_BACKOFF", "0.5"))
+        self.kwargs = kwargs
+
+        # 自动检测provider或使用指定的provider
+        requested_provider = (provider or "").lower() if provider else None
+        self.provider = provider or self._auto_detect_provider(api_key, base_url)
+
+        if requested_provider == "custom":
+            self.provider = "custom"
+            self.api_key = api_key or os.getenv("LLM_API_KEY")
+            self.base_url = base_url or os.getenv("LLM_BASE_URL")
+
+        else:
+            # 根据provider确定API密钥和base_url
+            self.api_key, self.base_url = self._resolve_credentials(api_key, base_url)
+
+            # 验证必要参数
+        if not self.model:
+            self.model = self._get_default_model()
+        if not all([self.api_key, self.base_url]):
+            raise HelloAgentsException("API密钥和服务地址必须被提供或在.env文件中定义。")
+
+            # 创建OpenAI客户端
+        self._client = self._create_client()
+        # 最近一次流式调用的统计信息（astream_invoke / stream 结束后可读）
+        self.last_call_stats: Optional[StreamStats] = None
+
+    def _auto_detect_provider(self, api_key: Optional[str], base_url: Optional[str]) -> str:
+        """
+        自动检测LLM提供商
+
+        检测逻辑：
+        1. 优先检查特定提供商的环境变量
+        2. 根据API密钥格式判断
+        3. 根据base_url判断
+        4. 默认返回通用配置
+        """
+        # 1. 检查特定提供商的环境变量
+        if os.getenv("OPENAI_API_KEY"):
+            return "openai"
+        if os.getenv("DEEPSEEK_API_KEY"):
+            return "deepseek"
+        if os.getenv("DASHSCOPE_API_KEY"):
+            return "qwen"
+        if os.getenv("MODELSCOPE_API_KEY"):
+            return "modelscope"
+        if os.getenv("KIMI_API_KEY") or os.getenv("MOONSHOT_API_KEY"):
+            return "kimi"
+        if os.getenv("ZHIPU_API_KEY") or os.getenv("GLM_API_KEY"):
+            return "zhipu"
+        if os.getenv("OLLAMA_API_KEY") or os.getenv("OLLAMA_HOST"):
+            return "ollama"
+        if os.getenv("VLLM_API_KEY") or os.getenv("VLLM_HOST"):
+            return "vllm"
+
+        # 2. 根据API密钥格式判断
+        actual_api_key = api_key or os.getenv("LLM_API_KEY")
+        if actual_api_key:
+            actual_key_lower = actual_api_key.lower()
+            if actual_api_key.startswith("ms-"):
+                return "modelscope"
+            elif actual_key_lower == "ollama":
+                return "ollama"
+            elif actual_key_lower == "vllm":
+                return "vllm"
+            elif actual_key_lower == "local":
+                return "local"
+            elif actual_api_key.startswith("sk-") and len(actual_api_key) > 50:
+                # 可能是OpenAI、DeepSeek或Kimi，需要进一步判断
+                pass
+            elif actual_api_key.endswith(".") or "." in actual_api_key[-20:]:
+                # 智谱AI的API密钥格式通常包含点号
+                return "zhipu"
+
+        # 3. 根据base_url判断
+        actual_base_url = base_url or os.getenv("LLM_BASE_URL")
+        if actual_base_url:
+            base_url_lower = actual_base_url.lower()
+            if "api.openai.com" in base_url_lower:
+                return "openai"
+            elif "api.deepseek.com" in base_url_lower:
+                return "deepseek"
+            elif "dashscope.aliyuncs.com" in base_url_lower:
+                return "qwen"
+            elif "api-inference.modelscope.cn" in base_url_lower:
+                return "modelscope"
+            elif "api.moonshot.cn" in base_url_lower:
+                return "kimi"
+            elif "open.bigmodel.cn" in base_url_lower:
+                return "zhipu"
+            elif "localhost" in base_url_lower or "127.0.0.1" in base_url_lower:
+                # 本地部署检测 - 优先检查特定服务
+                if ":11434" in base_url_lower or "ollama" in base_url_lower:
+                    return "ollama"
+                elif ":8000" in base_url_lower and "vllm" in base_url_lower:
+                    return "vllm"
+                elif ":8080" in base_url_lower or ":7860" in base_url_lower:
+                    return "local"
+                else:
+                    # 根据API密钥进一步判断
+                    if actual_api_key and actual_api_key.lower() == "ollama":
+                        return "ollama"
+                    elif actual_api_key and actual_api_key.lower() == "vllm":
+                        return "vllm"
+                    else:
+                        return "local"
+            elif any(port in base_url_lower for port in [":8080", ":7860", ":5000"]):
+                # 常见的本地部署端口
+                return "local"
+
+        # 4. 默认返回auto，使用通用配置
+        return "auto"
+
+    def _resolve_credentials(self, api_key: Optional[str], base_url: Optional[str]) -> tuple[str, str]:
+        """根据provider解析API密钥和base_url"""
+        if self.provider == "openai":
+            resolved_api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "https://api.openai.com/v1"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "deepseek":
+            resolved_api_key = api_key or os.getenv("DEEPSEEK_API_KEY") or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "https://api.deepseek.com"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "qwen":
+            resolved_api_key = api_key or os.getenv("DASHSCOPE_API_KEY") or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "modelscope":
+            resolved_api_key = api_key or os.getenv("MODELSCOPE_API_KEY") or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "https://api-inference.modelscope.cn/v1/"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "kimi":
+            resolved_api_key = api_key or os.getenv("KIMI_API_KEY") or os.getenv("MOONSHOT_API_KEY") or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "https://api.moonshot.cn/v1"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "zhipu":
+            resolved_api_key = api_key or os.getenv("ZHIPU_API_KEY") or os.getenv("GLM_API_KEY") or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "https://open.bigmodel.cn/api/paas/v4"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "ollama":
+            resolved_api_key = api_key or os.getenv("OLLAMA_API_KEY") or os.getenv("LLM_API_KEY") or "ollama"
+            resolved_base_url = base_url or os.getenv("OLLAMA_HOST") or os.getenv("LLM_BASE_URL") or "http://localhost:11434/v1"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "vllm":
+            resolved_api_key = api_key or os.getenv("VLLM_API_KEY") or os.getenv("LLM_API_KEY") or "vllm"
+            resolved_base_url = base_url or os.getenv("VLLM_HOST") or os.getenv("LLM_BASE_URL") or "http://localhost:8000/v1"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "local":
+            resolved_api_key = api_key or os.getenv("LLM_API_KEY") or "local"
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL") or "http://localhost:8000/v1"
+            return resolved_api_key, resolved_base_url
+
+        elif self.provider == "custom":
+            resolved_api_key = api_key or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL")
+            return resolved_api_key, resolved_base_url
+
+        else:
+            # auto或其他情况：使用通用配置，支持任何OpenAI兼容的服务
+            resolved_api_key = api_key or os.getenv("LLM_API_KEY")
+            resolved_base_url = base_url or os.getenv("LLM_BASE_URL")
+            return resolved_api_key, resolved_base_url
+
+    def _create_client(self) -> OpenAI:
+        """创建OpenAI客户端"""
+        return OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=self.timeout
+        )
+    # 视为瞬时、可重试的 HTTP 状态码。
+    # 含 401：中转网关在抖动/并发时常把有效 token 误报成 401（OpenAI SDK 默认不重试 401）。
+    _RETRYABLE_STATUS = frozenset({401, 408, 409, 425, 429, 500, 502, 503, 504})
+
+    def _is_retryable(self, exc: Exception) -> bool:
+        """判断异常是否属于可重试的瞬时错误（网络/超时/特定状态码）。"""
+        if isinstance(exc, APITimeoutError):
+            return False
+        if isinstance(exc, APIConnectionError):
+            return True
+        status = getattr(exc, "status_code", None)
+        if status is None and isinstance(exc, APIStatusError):
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+        return status in self._RETRYABLE_STATUS
+
+    def _create(self, **params):
+        """调用 chat.completions.create，对瞬时错误做指数退避重试。
+
+        重试上限 self.max_retries，退避 self.retry_backoff * 2**(n-1) 秒。
+        非瞬时错误（如参数错误、模型不存在）或重试用尽后，原样抛出由上层包装。
+        """
+        attempt = 0
+        while True:
+            try:
+                return self._client.chat.completions.create(**params)
+            except Exception as e:
+                attempt += 1
+                if attempt > self.max_retries or not self._is_retryable(e):
+                    raise
+                delay = self.retry_backoff * (2 ** (attempt - 1))
+                status = getattr(e, "status_code", None)
+                print(
+                    f"⚠️ LLM 调用瞬时失败"
+                    f"（{'HTTP ' + str(status) if status else type(e).__name__}），"
+                    f"第 {attempt}/{self.max_retries} 次重试，{delay:.1f}s 后…"
+                )
+                time.sleep(delay)
+
+    def _get_default_model(self) -> str:
+        """获取默认模型"""
+        if self.provider == "openai":
+            return "gpt-3.5-turbo"
+        elif self.provider == "deepseek":
+            return "deepseek-chat"
+        elif self.provider == "qwen":
+            return "qwen-plus"
+        elif self.provider == "modelscope":
+            return "Qwen/Qwen2.5-72B-Instruct"
+        elif self.provider == "kimi":
+            return "moonshot-v1-8k"
+        elif self.provider == "zhipu":
+            return "glm-4"
+        elif self.provider == "ollama":
+            return "llama3.2"  # Ollama常用模型
+        elif self.provider == "vllm":
+            return "meta-llama/Llama-2-7b-chat-hf"  # vLLM常用模型
+        elif self.provider == "local":
+            return "local-model"  # 本地模型占位符
+        elif self.provider == "custom":
+            return self.model or "gpt-3.5-turbo"
+        else:
+            # auto或其他情况：根据base_url智能推断默认模型
+            base_url = os.getenv("LLM_BASE_URL", "")
+            base_url_lower = base_url.lower()
+            if "modelscope" in base_url_lower:
+                return "Qwen/Qwen2.5-72B-Instruct"
+            elif "deepseek" in base_url_lower:
+                return "deepseek-chat"
+            elif "dashscope" in base_url_lower:
+                return "qwen-plus"
+            elif "moonshot" in base_url_lower:
+                return "moonshot-v1-8k"
+            elif "bigmodel" in base_url_lower:
+                return "glm-4"
+            elif "ollama" in base_url_lower or ":11434" in base_url_lower:
+                return "llama3.2"
+            elif ":8000" in base_url_lower or "vllm" in base_url_lower:
+                return "meta-llama/Llama-2-7b-chat-hf"
+            elif "localhost" in base_url_lower or "127.0.0.1" in base_url_lower:
+                return "local-model"
+            else:
+                return "gpt-5.5"
+
+    def think(self, messages: list[dict[str, str]], temperature: Optional[float] = None):
+        """
+        调用大语言模型进行思考，并返回流式响应。
+        这是主要的调用方法，默认使用流式响应以获得更好的用户体验。
+
+        Args:
+            messages: 消息列表
+            temperature: 温度参数，如果未提供则使用初始化时的值
+
+        Yields:
+            str: 流式响应的文本片段
+        """
+        print(f"🧠 正在调用 {self.model} 模型...")
+
+        try:
+            response = self._create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature if temperature is not None else self.temperature,
+                max_tokens=self.max_tokens,
+                stream=True,
+            )
+
+            # 处理流式响应
+            print("✅ 大语言模型响应成功:")
+            for chunk in response:
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    print(content, end="", flush=True)
+                    yield content
+            print()  # 在流式输出结束后换行
+
+        except Exception as e:
+            print(f"❌ 调用LLM API时发生错误: {e}")
+            raise HelloAgentsException(f"LLM调用失败: {str(e)}")
+
+    def invoke(self, messages:list[dict[str, str]], **kwargs) -> str:
+        """
+        非流式调用LLM，返回完整响应。
+        适用于不需要流式输出的场景。
+        """
+        try:
+            response = self._create(
+                model=self.model,
+                messages=messages,
+                temperature=kwargs.get('temperature', self.temperature),
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens']}
+            )
+
+            return response.choices[0].message.content
+        except Exception as e:
+            raise HelloAgentsException(f"LLM调用失败: {str(e)}")
+    def stream_invoke(self, messages: list[dict[str, str]], **kwargs) -> Iterator[str]:
+        """
+        流式调用LLM的别名方法，与think方法功能相同。
+        保持向后兼容性。
+        """
+        temperature = kwargs.get('temperature')
+        yield from self.think(messages, temperature) # 带 yield 的函数，变成生成器（Iterator）
+
+    # invoke_response(messages, **kwargs) -> LLMResponse：非流式调用，把usage / 耗时 / reasoning_content
+    # 一起打包返回（用time.time()算latency，从response.usage取token）。
+    def invoke_stream(self, messages: list[dict[str, str]], **kwargs) -> LLMResponse:
+        """
+        非流式调用LLM，返回结构化的 LLMResponse（含 content/model/usage/latency/推理过程）。
+
+        与 invoke() 的区别：invoke() 只返回 str（向后兼容，agents 都依赖它）；
+        本方法返回完整响应对象，便于日志、统计、thinking model 的推理过程提取。
+        LLMResponse.__str__ 返回 content，所以可直接当字符串打印。
+        """
+
+        start = time.time()
+
+        try:
+            response = self._create(
+                model=self.model,
+                messages=messages,
+                temperature=kwargs.get('temperature', self.temperature),
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens']}
+            )
+        except Exception as e:
+            raise HelloAgentsException(f"LLM调用失败: {str(e)}")
+
+        latency_ms = int((time.time() - start) * 1000)
+        msg = response.choices[0].message
+
+        usage = {}
+        if getattr(response, "usage", None) is not None:
+            usage = {
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "total_tokens": getattr(response.usage, "total_tokens", 0),
+            }
+        # thinking model（o1 / deepseek-reasoner 等）的推理过程
+        reasoning = getattr(msg, "reasoning_content", None)
+        return LLMResponse(
+            content=msg.content or "",
+            model=getattr(response, "model", self.model) or self.model,
+            usage=usage,
+            latency_ms=latency_ms,
+            reasoning_content=reasoning,
+        )
+
+    def invoke_with_tools(
+            self,
+            messages: List[Dict],
+            tools: List[Dict],
+            tool_choice: Union[str, Dict] = "auto",
+            **kwargs
+    ) -> LLMToolResponse:
+        """
+        调用 LLM 并支持工具调用（OpenAI Function Calling）。
+
+        Args:
+            messages: 消息列表
+            tools: 工具 schema 列表（OpenAI Function Calling 规范）
+            tool_choice: "auto" / "none" / "required" / {"type":"function",...}
+            **kwargs: 其他参数（temperature, max_tokens 等）
+
+        Returns:
+            LLMToolResponse(content, tool_calls, model, usage, latency_ms)
+        """
+        start = time.time()
+        try:
+            response = self._create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=kwargs.get('temperature', self.temperature),
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens']}
+            )
+        except Exception as e:
+            raise HelloAgentsException(f"LLM工具调用失败: {str(e)}")
+
+        latency_ms = int((time.time() - start) * 1000)
+        msg = response.choices[0].message
+        tool_calls: List[ToolCall] = []
+
+        for tc in (getattr(msg, "tool_calls", None) or []):
+            tool_calls.append(ToolCall(
+                id=tc.id,
+                name=tc.function.name,
+                arguments=tc.function.arguments,
+            ))
+
+        usage = {}
+        if getattr(response, "usage", None) is not None:
+            usage = {
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "total_tokens": getattr(response.usage, "total_tokens", 0),
+            }
+        return LLMToolResponse(
+            content=msg.content,
+            tool_calls=tool_calls,
+            model=getattr(response, "model", self.model) or self.model,
+            usage=usage,
+            latency_ms=latency_ms,
+        )
+    # ==================== 异步方法 ====================
+
+    async def ainvoke(self, messages: list[dict[str, str]], **kwargs) -> str:
+        """
+        异步非流式调用 LLM，返回 str（与同步 invoke 一致，async 孪生版）。
+        在线程池中运行同步 invoke，避免阻塞事件循环。
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.invoke(messages, **kwargs))
+
+    async def ainvoke_response(self, messages: list[dict[str, str]], **kwargs) -> LLMResponse:
+        """异步版 invoke_response，返回结构化 LLMResponse。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.invoke_response(messages, **kwargs))
+
+    async def astream_invoke(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
+        """
+        异步流式调用 LLM，逐块产出文本片段。
+
+        vendored 版没有原生异步 adapter，这里用「后台线程跑同步流式生成器 +
+        线程安全队列」桥接到 asyncio，使其可在 `async for` 中实时消费。
+        """
+
+        loop = asyncio.get_event_loop()
+        q: "queue.Queue" = queue.Queue()
+        _DONE = object()
+
+        def _producer():
+            try:
+                for chunk in self.stream_invoke(messages, **kwargs):
+                    loop.call_soon_threadsafe(q.put_nowait, chunk)
+            except Exception as e:  # 把异常透传到消费端
+                loop.call_soon_threadsafe(q.put_nowait, e)
+            finally:
+                loop.call_soon_threadsafe(q.put_nowait, _DONE)
+
+        threading.Thread(target=_producer, daemon=True).start()
+
+        while True:
+            item = await loop.run_in_executor(None, q.get)
+            if item is _DONE:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield item
+
+    async def ainvoke_with_tools(
+            self,
+            messages: List[Dict],
+            tools: List[Dict],
+            tool_choice: Union[str, Dict] = "auto",
+            **kwargs
+    ) -> LLMToolResponse:
+        """异步版 invoke_with_tools。"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.invoke_with_tools(messages, tools, tool_choice, **kwargs)
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
