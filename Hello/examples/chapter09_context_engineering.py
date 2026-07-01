@@ -7,8 +7,7 @@
 3. 优化Agent性能
 """
 
-from hello_agents.agents.simple_agent import SimpleAgent
-from hello_agents.core.llm import HelloAgentsLLM
+from hello_agents import SimpleAgent, HelloAgentsLLM
 
 def main():
     """上下文工程示例"""
