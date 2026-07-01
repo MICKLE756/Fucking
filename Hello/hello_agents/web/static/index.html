@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HelloAgents · Agent 流程可视化</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #1e293b; --panel2: #273449;
+      --text: #e2e8f0; --muted: #94a3b8; --border: #334155;
+      --thought: #a78bfa; --action: #38bdf8; --observation: #34d399;
+      --final: #fbbf24; --error: #f87171; --accent: #6366f1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+    header {
+      padding: 20px 28px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    header .badge { font-size: 12px; color: var(--muted); }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+    .controls {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      background: var(--panel); padding: 16px; border-radius: 12px; border: 1px solid var(--border);
+    }
+    .controls input[type=text] {
+      flex: 1; min-width: 240px; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px;
+    }
+    .controls select {
+      padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 14px;
+    }
+    button {
+      padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+      background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status { margin: 14px 2px; font-size: 13px; color: var(--muted); min-height: 18px; }
+    .timeline { position: relative; margin-top: 10px; padding-left: 34px; }
+    .timeline::before {
+      content: ""; position: absolute; left: 13px; top: 6px; bottom: 6px; width: 2px; background: var(--border);
+    }
+    .event {
+      position: relative; margin-bottom: 16px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+      animation: fade 0.35s ease; border-left-width: 4px;
+    }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .event::before {
+      content: ""; position: absolute; left: -25px; top: 18px; width: 12px; height: 12px;
+      border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
+    }
+    .event .etype { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+    .event .estep { font-size: 11px; color: var(--muted); margin-left: 8px; }
+    .event .econtent { margin-top: 8px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .event .tool { display:inline-block; margin-top:8px; font-family: ui-monospace, monospace; font-size: 12px;
+      background: var(--panel2); padding: 4px 8px; border-radius: 6px; color: var(--action); }
+    .t-thought { border-left-color: var(--thought); }
+    .t-thought .etype { color: var(--thought); }
+    .t-thought::before { background: var(--thought); }
+    .t-action { border-left-color: var(--action); }
+    .t-action .etype { color: var(--action); }
+    .t-action::before { background: var(--action); }
+    .t-observation { border-left-color: var(--observation); }
+    .t-observation .etype { color: var(--observation); }
+    .t-observation::before { background: var(--observation); }
+    .t-final { border-left-color: var(--final); }
+    .t-final .etype { color: var(--final); }
+    .t-final::before { background: var(--final); }
+    .t-final .econtent { font-weight: 600; }
+    .t-error { border-left-color: var(--error); }
+    .t-error .etype { color: var(--error); }
+    .t-error::before { background: var(--error); }
+    .t-start { border-left-color: var(--muted); }
+    .t-start .etype { color: var(--muted); }
+    .t-start::before { background: var(--muted); }
+    .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin: 8px 2px 0; }
+    .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+    .lg-thought::before { background: var(--thought); }
+    .lg-action::before { background: var(--action); }
+    .lg-observation::before { background: var(--observation); }
+    .lg-final::before { background: var(--final); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🤖 HelloAgents · Agent 流程可视化</h1>
+    <span class="badge">ReAct：思考 → 行动 → 观察 → 最终答案</span>
+  </header>
+  <div class="wrap">
+    <div class="controls">
+      <input id="q" type="text" value="请计算 15 * 23 + 45 等于多少？" placeholder="输入一个问题..." />
+      <select id="mode">
+        <option value="demo">演示模式（无需 LLM）</option>
+        <option value="live">真实模式（读取 .env 的 LLM）</option>
+      </select>
+      <button id="runBtn">运行</button>
+    </div>
+    <div class="legend">
+      <span class="lg-thought">思考 Thought</span>
+      <span class="lg-action">行动 Action</span>
+      <span class="lg-observation">观察 Observation</span>
+      <span class="lg-final">最终答案 Final</span>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <script>
+    const LABELS = {
+      start: "开始", thought: "思考", action: "行动",
+      observation: "观察", final: "最终答案", error: "错误", end: "结束"
+    };
+    const runBtn = document.getElementById("runBtn");
+    const timeline = document.getElementById("timeline");
+    const statusEl = document.getElementById("status");
+    let es = null;
+
+    function addEvent(ev) {
+      if (ev.type === "end") { setStatus("✅ 流程结束"); return; }
+      const div = document.createElement("div");
+      div.className = "event t-" + ev.type;
+      const label = LABELS[ev.type] || ev.type;
+      const step = ev.step ? `<span class="estep">第 ${ev.step} 步</span>` : "";
+      let inner = `<div><span class="etype">${label}</span>${step}</div>`;
+      if (ev.content) inner += `<div class="econtent">${escapeHtml(ev.content)}</div>`;
+      if (ev.tool) inner += `<div class="tool">${escapeHtml(ev.tool)}[${escapeHtml(ev.tool_input || "")}]</div>`;
+      div.innerHTML = inner;
+      timeline.appendChild(div);
+      div.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+    function setStatus(s) { statusEl.textContent = s; }
+
+    function run() {
+      if (es) es.close();
+      timeline.innerHTML = "";
+      const q = document.getElementById("q").value.trim();
+      const mode = document.getElementById("mode").value;
+      runBtn.disabled = true;
+      setStatus("⏳ 运行中...（" + (mode === "live" ? "真实 LLM" : "演示模式") + "）");
+      es = new EventSource(`/api/run?mode=${mode}&q=${encodeURIComponent(q)}`);
+      es.onmessage = (e) => {
+        const ev = JSON.parse(e.data);
+        addEvent(ev);
+        if (ev.type === "end") { es.close(); runBtn.disabled = false; }
+      };
+      es.onerror = () => {
+        setStatus("⚠️ 连接中断或已结束");
+        es.close(); runBtn.disabled = false;
+      };
+    }
+    runBtn.addEventListener("click", run);
+  </script>
+</body>
+</html>
