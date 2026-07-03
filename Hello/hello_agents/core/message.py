@@ -18,7 +18,7 @@ class Message(BaseModel):
         super().__init__(
             content=content,
             role=role,
-            timestamp=kwargs.get('timestamp', datetime.now()),
+            timestamp=kwargs.get('timestamp') or datetime.now(),
             metadata=kwargs.get('metadata', {})
         )
 
