@@ -161,9 +161,14 @@ def demo_context_builder_with_tools(workspace: str, llm: HelloAgentsLLM):
     # --- 步骤1: TerminalTool 即时探索文件 ---
     terminal = TerminalTool(workspace=str(project_dir))
     print("步骤1: TerminalTool 探索项目")
-    ls_output = terminal.run({"command": "ls"})
-    print(f"  $ ls\n{ls_output}")
-    readme_output = terminal.run({"command": "cat README.md"})
+    # 根据操作系统选择命令（Windows: dir/type，Linux/Mac: ls/cat）
+    if terminal.get_os_type() == "windows":
+        list_cmd, read_cmd = "dir /b", "type README.md"
+    else:
+        list_cmd, read_cmd = "ls", "cat README.md"
+    ls_output = terminal.run({"command": list_cmd})
+    print(f"  $ {list_cmd}\n{ls_output}")
+    readme_output = terminal.run({"command": read_cmd})
 
     # --- 步骤2: ObservationTruncator 截断工具输出 ---
     truncator = ObservationTruncator(
