@@ -11,8 +11,9 @@ NoteTool / TerminalTool 的结合使用：
    - ObservationTruncator 截断过长的工具输出
    - NoteTool 沉淀任务状态与关键结论
    - ContextBuilder 把笔记、工具结果、对话历史组装成结构化上下文
+   - 最终把结构化上下文发给 LLM 生成回答
 
-本示例不依赖 LLM API，可直接运行观察各组件行为。
+运行前需要在 .env 中配置 LLM API（如 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL_ID）。
 """
 
 import sys
@@ -23,6 +24,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# 加载环境变量（LLM API 配置）
+load_dotenv()
+
+from hello_agents import HelloAgentsLLM
 from hello_agents.core.message import Message
 from hello_agents.context import (
     ContextBuilder,
@@ -58,23 +65,32 @@ def demo_token_counter():
     print()
 
 
-def demo_history_manager():
-    """演示2: HistoryManager - 历史管理与压缩"""
+def demo_history_manager(llm: HelloAgentsLLM):
+    """演示2: HistoryManager - 历史管理与压缩（用 LLM 生成摘要）"""
     print("🗂️ 演示2: HistoryManager")
     print("=" * 50)
 
     manager = HistoryManager(min_retain_rounds=2)
 
     # 模拟5轮对话
-    for i in range(1, 6):
-        manager.append(Message(f"第{i}个问题", "user"))
-        manager.append(Message(f"第{i}个回答", "assistant"))
+    topics = ["什么是上下文工程", "GSSC流水线是什么", "如何做历史压缩", "工具输出如何截断", "Token怎么计数"]
+    for i, topic in enumerate(topics, 1):
+        manager.append(Message(f"第{i}个问题：{topic}？", "user"))
+        manager.append(Message(f"第{i}个回答：关于'{topic}'的简要说明。", "assistant"))
 
     print(f"压缩前: {len(manager.get_history())} 条消息, {manager.estimate_rounds()} 轮")
     print(f"轮次边界: {manager.find_round_boundaries()}")
 
+    # 用 LLM 对旧历史生成高保真摘要（实际系统中的标准做法）
+    old_history_text = "\n".join(msg.to_text() for msg in manager.get_history()[:-4])
+    summary = llm.invoke([
+        {"role": "system", "content": "你是对话摘要助手，请把对话历史压缩成不超过50字的摘要，保留关键话题。"},
+        {"role": "user", "content": f"请总结以下对话：\n{old_history_text}"},
+    ])
+    print(f"LLM 生成的摘要: {summary}")
+
     # 压缩：旧历史 -> summary 消息，只保留最近2轮
-    manager.compress("用户先后询问了5个问题，前3轮已确认上下文工程的基本概念。")
+    manager.compress(summary)
 
     history = manager.get_history()
     print(f"压缩后: {len(history)} 条消息, 首条角色 = {history[0].role}")
@@ -116,16 +132,17 @@ def demo_observation_truncator(workspace: str):
     print()
 
 
-def demo_context_builder_with_tools(workspace: str):
-    """演示4: ContextBuilder + NoteTool + TerminalTool 综合案例
+def demo_context_builder_with_tools(workspace: str, llm: HelloAgentsLLM):
+    """演示4: ContextBuilder + NoteTool + TerminalTool + LLM 综合案例
 
     模拟一个"代码仓库分析"任务：
     1. TerminalTool 探索项目文件（Gather 阶段的 JIT 检索）
     2. ObservationTruncator 控制工具输出体积
     3. NoteTool 记录任务状态与关键结论（跨轮次的外部记忆）
     4. ContextBuilder 将以上信息组装为结构化上下文
+    5. 将结构化上下文发给 LLM 生成最终回答
     """
-    print("🏗️ 演示4: ContextBuilder + NoteTool + TerminalTool")
+    print("🏗️ 演示4: ContextBuilder + NoteTool + TerminalTool + LLM")
     print("=" * 50)
 
     # --- 准备一个模拟项目目录 ---
@@ -219,18 +236,27 @@ def demo_context_builder_with_tools(workspace: str):
     print("-" * 50)
     print(context)
     print("-" * 50)
+
+    # --- 步骤5: 把结构化上下文发给 LLM 生成回答 ---
+    print("步骤5: LLM 基于结构化上下文生成回答")
+    answer = llm.invoke([{"role": "user", "content": context}])
+    print("LLM 回答:")
+    print(answer)
     print()
 
 
 def main():
     print("=== 第九章：上下文工程示例 ===\n")
 
+    # 初始化 LLM（从 .env 读取 API 配置）
+    llm = HelloAgentsLLM()
+
     workspace = tempfile.mkdtemp(prefix="chapter09_")
     try:
         demo_token_counter()
-        demo_history_manager()
+        demo_history_manager(llm)
         demo_observation_truncator(workspace)
-        demo_context_builder_with_tools(workspace)
+        demo_context_builder_with_tools(workspace, llm)
         print("✅ 全部演示完成")
     finally:
         shutil.rmtree(workspace, ignore_errors=True)
