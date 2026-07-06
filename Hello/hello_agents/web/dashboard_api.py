@@ -804,8 +804,16 @@ def _kb_extract_text(path: Path) -> str:
     ext = path.suffix.lower()
     if ext in (".md", ".markdown", ".txt", ".csv", ".json"):
         return path.read_text(encoding="utf-8", errors="replace")
-    from hello_agents.memory.rag.pipeline import _convert_to_markdown
-    return _convert_to_markdown(str(path))
+    # 二进制格式必须真正解析成功，不能退回原始字节（否则索引进的是乱码）
+    from markitdown import MarkItDown
+    try:
+        result = MarkItDown(enable_plugins=False).convert(str(path))
+        text = getattr(result, "text_content", "") or ""
+    except Exception as e:
+        raise ValueError(f"解析 {ext} 文件失败：{e}。若提示缺依赖，请安装 markitdown[pdf,docx]") from e
+    if not text.strip():
+        raise ValueError(f"解析 {ext} 文件未得到文本内容")
+    return text
 
 
 def _kb_reindex_locked() -> None:
@@ -897,7 +905,11 @@ async def kb_upload(file: UploadFile = File(...)) -> JSONResponse:
         saved_path = _KB_FILES_DIR / f"{doc_id}_{name}"
         saved_path.write_bytes(raw)
 
-        text = _kb_extract_text(saved_path)
+        try:
+            text = _kb_extract_text(saved_path)
+        except ValueError as e:
+            saved_path.unlink(missing_ok=True)
+            return _err(str(e))
         if not text or not text.strip():
             saved_path.unlink(missing_ok=True)
             return _err("未能从文件中提取到文本内容")
