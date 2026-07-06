@@ -207,10 +207,16 @@ class ContextBuilder:
         user_query: str
     ) -> List[ContextPacket]:
         """Select: 基于分数与预算的筛选"""
-        # 1) 计算相关性（关键词重叠）
-        query_tokens = set(user_query.lower().split())
+        # 1) 计算相关性（关键词重叠；对 CJK 文本按字符二元组切分，空格分词对中文无效）
+        def tokenize(text: str) -> set:
+            tokens = set(text.lower().split())
+            cjk = [ch for ch in text if '\u4e00' <= ch <= '\u9fff']
+            tokens.update(a + b for a, b in zip(cjk, cjk[1:]))
+            return tokens
+
+        query_tokens = tokenize(user_query)
         for packet in packets:
-            content_tokens = set(packet.content.lower().split())
+            content_tokens = tokenize(packet.content)
             if len(query_tokens) > 0:
                 overlap = len(query_tokens & content_tokens)
                 packet.relevance_score = overlap / len(query_tokens)
