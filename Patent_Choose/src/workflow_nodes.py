@@ -23,6 +23,7 @@ from intent_recognize_model_base import IntentRecognizeModelBase
 from intent_state_machine import IntentStateMachine
 from entity_extractor_rule_base import EntityExtractorRuleBase
 from intent_slot_memory import SlotMemory
+from query_history_memory import QueryHistoryMemory
 from patent_search import PatentSearchService
 from workflow_engine import WorkflowEngine
 
@@ -42,6 +43,7 @@ class PatentWorkflow:
         self.intent_sm = IntentStateMachine()
         self.entity_extractor = EntityExtractorRuleBase()
         self.slot_memory = SlotMemory()
+        self.query_history = QueryHistoryMemory()
         self.search_service = PatentSearchService()
         self.state = self._default_state()
         self.engine = self._build_engine()
@@ -406,6 +408,7 @@ class PatentWorkflow:
         if level2 in ("专利检索",) or level1 == "search":
             results = self._run_search(state)
             state["_tool_result"] = {"patents": results, "total": len(results)}
+            self._attach_history(state, results, record=True)
 
         elif level2 == "专利详情查询":
             pid = state["constraints"].get("patent_id", "")
@@ -430,6 +433,7 @@ class PatentWorkflow:
                 "bundle_name": f"{state['tech_domain'] or '技术'}综合方案",
                 "patents": results,
             }
+            self._attach_history(state, results, record=True)
         else:
             state["_tool_result"] = {"message": "暂不支持该操作"}
 
@@ -457,7 +461,9 @@ class PatentWorkflow:
 你是回复生成专家。请严格基于下方工具执行结果，生成自然语言回复:
 1. 先给整体总结（找到多少条相关专利）
 2. 再给候选专利卡片（若有）: 专利号、标题、发明人、技术领域、公开日期
-3. 再给推荐理由和下一步建议
+3. 若工具结果包含 history_recommendations，追加一节「📚 历史相关推荐」，逐条给出专利号、标题与推荐理由（来自历史用户的相似检索）
+4. 若工具结果包含 similar_history_queries，简短提示用户曾有类似的历史查询
+5. 再给推荐理由和下一步建议
 
 工具执行结果: {tool_result_str}
 用户原始需求: {user_need}"""
@@ -508,6 +514,45 @@ class PatentWorkflow:
         state["_request"] = "[操作提示] " + "；".join(hints) if hints else ""
         state["_response"] = "该功能正在开发中，请稍后再试。如需专利检索或分析，请告诉我您的需求。"
         return state
+
+    # ==================== 历史记忆 / 推荐 ====================
+
+    def _attach_history(self, state: dict, results: list, record: bool = False) -> None:
+        """给工具结果附加「相似历史查询 + 历史推荐」，并沉淀本次检索。"""
+        query_kwargs = dict(
+            query_text=state.get("_gather_query") or state.get("user_input", ""),
+            tech_domain=state.get("tech_domain", ""),
+            core_problem=state.get("core_problem", ""),
+            constraints=state.get("constraints", {}),
+        )
+
+        similar = self.query_history.find_similar(**query_kwargs, limit=3)
+        if similar:
+            state["_tool_result"]["similar_history_queries"] = [
+                {
+                    "query_text": item["record"].get("query_text", ""),
+                    "tech_domain": item["record"].get("tech_domain", ""),
+                    "similarity": item["similarity"],
+                    "ts": item["record"].get("ts", ""),
+                }
+                for item in similar
+            ]
+            print(f"    [记忆] 命中 {len(similar)} 条相似历史查询")
+
+        exclude_ids = {p.get("patent_id", "") for p in results}
+        recommendations = self.query_history.recommend_patents(
+            **query_kwargs, exclude_ids=exclude_ids, limit=5
+        )
+        if recommendations:
+            state["_tool_result"]["history_recommendations"] = recommendations
+            print(f"    [推荐] 基于历史检索推荐 {len(recommendations)} 条专利")
+
+        if record:
+            self.query_history.record_query(
+                **query_kwargs,
+                patents=results,
+                session_id=state.get("session_id", ""),
+            )
 
     # ==================== 专利检索工具 ====================
 
