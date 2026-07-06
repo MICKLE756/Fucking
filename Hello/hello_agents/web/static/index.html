@@ -3,164 +3,1278 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HelloAgents · Agent 流程可视化</title>
+  <title>HelloAgents · 终极可视化控制台</title>
   <style>
     :root {
-      --bg: #0f172a; --panel: #1e293b; --panel2: #273449;
-      --text: #e2e8f0; --muted: #94a3b8; --border: #334155;
-      --thought: #a78bfa; --action: #38bdf8; --observation: #34d399;
-      --final: #fbbf24; --error: #f87171; --accent: #6366f1;
+      --bg: #07111f;
+      --bg2: #0d1728;
+      --panel: #101c31;
+      --panel2: #16243b;
+      --panel3: #1b2d49;
+      --line: #253652;
+      --text: #e7eefb;
+      --muted: #91a4c4;
+      --accent: #7c8dff;
+      --accent2: #21c8f6;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --bad: #fb7185;
+      --demo: #8b95b8;
+      --live: #22c55e;
+      --shadow: 0 16px 40px rgba(0, 0, 0, .28);
+      --radius: 18px;
+      --sidebar-w: 278px;
+      --header-h: 72px;
+      --transition: 180ms ease;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
-      margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: var(--bg); color: var(--text); min-height: 100vh;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 900px at 20% 0%, #102242 0%, var(--bg) 55%) fixed;
+      color: var(--text);
+      overflow: hidden;
     }
-    header {
-      padding: 20px 28px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 12px;
+    a { color: inherit; }
+    .app { display: flex; height: 100vh; width: 100vw; }
+
+    .sidebar {
+      width: var(--sidebar-w);
+      background: linear-gradient(180deg, rgba(13, 23, 40, .96), rgba(8, 14, 24, .98));
+      border-right: 1px solid rgba(125, 143, 184, .12);
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+      z-index: 3;
+      box-shadow: 10px 0 40px rgba(0, 0, 0, .18);
     }
-    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
-    header .badge { font-size: 12px; color: var(--muted); }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-    .controls {
+    .brand {
+      padding: 14px 14px 12px;
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(124,141,255,.14), rgba(33,200,246,.08));
+      border: 1px solid rgba(124,141,255,.18);
+    }
+    .brand .title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: .3px;
+      line-height: 1.35;
+    }
+    .brand .sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .nav-item {
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.02);
+      color: var(--text);
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: transform var(--transition), background var(--transition), border-color var(--transition);
+      min-height: 56px;
+    }
+    .nav-item:hover { transform: translateY(-1px); background: rgba(124,141,255,.10); border-color: rgba(124,141,255,.22); }
+    .nav-item.active { background: linear-gradient(135deg, rgba(124,141,255,.20), rgba(33,200,246,.10)); border-color: rgba(124,141,255,.26); }
+    .nav-emoji {
+      width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center;
+      background: rgba(255,255,255,.06); font-size: 15px; flex: 0 0 auto;
+    }
+    .nav-meta { flex: 1; min-width: 0; }
+    .nav-title { font-size: 14px; font-weight: 700; }
+    .nav-desc { margin-top: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 999px; flex: 0 0 auto;
+      box-shadow: 0 0 0 4px rgba(255,255,255,.04);
+    }
+    .dot.live { background: var(--live); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
+    .dot.demo { background: var(--demo); box-shadow: 0 0 0 4px rgba(139,149,184,.12); }
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .topbar {
+      height: var(--header-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px 0 28px;
+      border-bottom: 1px solid rgba(125, 143, 184, .12);
+      background: rgba(7, 17, 31, .72);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 24px rgba(0,0,0,.08);
+      z-index: 2;
+    }
+    .topbar h1 {
+      font-size: 19px;
+      margin: 0;
+      font-weight: 900;
+      letter-spacing: .2px;
+    }
+    .topbar .meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+    }
+    .pill.live { color: #b6ffd0; border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.10); }
+    .pill.demo { color: #dbe2f5; border-color: rgba(139,149,184,.20); background: rgba(139,149,184,.08); }
+
+    .content {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 22px;
+      scroll-behavior: smooth;
+    }
+    .panel {
+      display: none;
+      min-height: calc(100vh - var(--header-h) - 44px);
+    }
+    .panel.active { display: block; }
+    .panel-card {
+      background: linear-gradient(180deg, rgba(16, 28, 49, .96), rgba(13, 23, 40, .96));
+      border: 1px solid rgba(125, 143, 184, .12);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid rgba(125, 143, 184, .10);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .panel-title h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 900;
+    }
+    .panel-title p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .panel-body { padding: 18px; }
+    .section {
+      background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      color: #f2f6ff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .2px;
+    }
+    .muted { color: var(--muted); }
+    .grid { display: grid; gap: 14px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid-auto { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+    .card {
+      background: linear-gradient(180deg, rgba(22, 36, 59, .96), rgba(16, 28, 49, .95));
+      border: 1px solid rgba(125, 143, 184, .12);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+      min-width: 0;
+    }
+    .card h3, .card h4 { margin: 0; }
+    .card h3 { font-size: 15px; }
+    .card h4 { font-size: 14px; }
+    .card .desc { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .metric {
+      margin-top: 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-size: 12px; color: var(--muted);
+    }
+    .metric strong { color: var(--text); font-size: 14px; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .tag.live { color: #c9ffdd; border-color: rgba(34,197,94,.22); background: rgba(34,197,94,.08); }
+    .tag.demo { color: #d7dff2; border-color: rgba(139,149,184,.18); background: rgba(139,149,184,.07); }
+    .tag.mixed { color: #d7d1ff; border-color: rgba(124,141,255,.22); background: rgba(124,141,255,.08); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+      background: rgba(124,141,255,.12); color: #dce1ff; border: 1px solid rgba(124,141,255,.22);
+    }
+    .badge.good { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.24); color: #cbf9d9; }
+    .badge.warn { background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.24); color: #ffe8a4; }
+    .badge.bad { background: rgba(251,113,133,.12); border-color: rgba(251,113,133,.24); color: #ffc2ce; }
+    .badge.demo { background: rgba(139,149,184,.10); border-color: rgba(139,149,184,.20); color: #d7dff2; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .spacer { flex: 1; }
+    .mono, pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre {
+      margin: 0; white-space: pre-wrap; word-break: break-word;
+      background: rgba(8, 15, 27, .92);
+      border: 1px solid rgba(125, 143, 184, .12);
+      border-radius: 14px;
+      padding: 14px;
+      color: #e7eefb;
+      line-height: 1.55;
+      font-size: 12px;
+      overflow: auto;
+    }
+    .json .key { color: #7dd3fc; }
+    .json .string { color: #a7f3d0; }
+    .json .number { color: #fdba74; }
+    .json .boolean { color: #c4b5fd; }
+    .json .null { color: #fda4af; }
+    .kv { width: 100%; border-collapse: collapse; }
+    .kv th, .kv td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      vertical-align: top;
+      font-size: 12px;
+      text-align: left;
+    }
+    .kv th { color: var(--muted); width: 36%; font-weight: 700; }
+    .kv td { color: var(--text); }
+    .bar {
+      width: 100%; height: 12px; background: rgba(255,255,255,.06); border-radius: 999px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .bar > span {
+      display: block; height: 100%; border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+    .bar.good > span { background: linear-gradient(90deg, #22c55e, #86efac); }
+    .bar.warn > span { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
+    .bar.bad > span { background: linear-gradient(90deg, #fb7185, #fda4af); }
+    .tiny { font-size: 11px; color: var(--muted); }
+    .panel-note {
+      margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.65;
+      padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.02); border: 1px dashed rgba(125,143,184,.18);
+    }
+
+    /* Overview */
+    .overview-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+    .overview-card { cursor: pointer; transition: transform var(--transition), border-color var(--transition), background var(--transition); }
+    .overview-card:hover { transform: translateY(-2px); border-color: rgba(124,141,255,.30); background: rgba(124,141,255,.08); }
+    .overview-card .metric strong { font-size: 18px; }
+
+    /* ReAct */
+    .react-controls {
       display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
-      background: var(--panel); padding: 16px; border-radius: 12px; border: 1px solid var(--border);
+      padding: 12px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(125,143,184,.12);
+      margin-bottom: 14px;
     }
-    .controls input[type=text] {
-      flex: 1; min-width: 240px; padding: 10px 14px; border-radius: 8px;
-      border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px;
+    .react-controls input[type=text], .react-controls select {
+      border: 1px solid rgba(125,143,184,.18); background: var(--bg2); color: var(--text);
+      border-radius: 12px; padding: 11px 12px; font-size: 14px;
     }
-    .controls select {
-      padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--text); font-size: 14px;
+    .react-controls input[type=text] { flex: 1; min-width: 260px; }
+    .react-controls button {
+      border: none; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white;
+      padding: 11px 18px; border-radius: 12px; font-weight: 800; cursor: pointer;
     }
-    button {
-      padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
-      background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
-    }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .status { margin: 14px 2px; font-size: 13px; color: var(--muted); min-height: 18px; }
-    .timeline { position: relative; margin-top: 10px; padding-left: 34px; }
-    .timeline::before {
-      content: ""; position: absolute; left: 13px; top: 6px; bottom: 6px; width: 2px; background: var(--border);
-    }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 4px 0 10px; }
+    .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
+    .lg-start::before { background: #94a3b8; }
+    .lg-thought::before { background: #a78bfa; }
+    .lg-action::before { background: #38bdf8; }
+    .lg-observation::before { background: #34d399; }
+    .lg-final::before { background: #fbbf24; }
+    .timeline { position: relative; padding-left: 34px; }
+    .timeline::before { content: ""; position: absolute; left: 13px; top: 8px; bottom: 8px; width: 2px; background: rgba(125,143,184,.20); }
     .event {
-      position: relative; margin-bottom: 16px; background: var(--panel);
-      border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
-      animation: fade 0.35s ease; border-left-width: 4px;
+      position: relative; margin-bottom: 14px; border-radius: 16px; padding: 14px 15px 14px 16px;
+      border: 1px solid rgba(125,143,184,.12); background: rgba(255,255,255,.03); border-left-width: 4px;
     }
-    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     .event::before {
-      content: ""; position: absolute; left: -25px; top: 18px; width: 12px; height: 12px;
-      border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
+      content: ""; position: absolute; left: -25px; top: 18px; width: 12px; height: 12px; border-radius: 999px;
+      background: var(--accent); border: 2px solid var(--bg);
     }
-    .event .etype { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
-    .event .estep { font-size: 11px; color: var(--muted); margin-left: 8px; }
-    .event .econtent { margin-top: 8px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-    .event .tool { display:inline-block; margin-top:8px; font-family: ui-monospace, monospace; font-size: 12px;
-      background: var(--panel2); padding: 4px 8px; border-radius: 6px; color: var(--action); }
-    .t-thought { border-left-color: var(--thought); }
-    .t-thought .etype { color: var(--thought); }
-    .t-thought::before { background: var(--thought); }
-    .t-action { border-left-color: var(--action); }
-    .t-action .etype { color: var(--action); }
-    .t-action::before { background: var(--action); }
-    .t-observation { border-left-color: var(--observation); }
-    .t-observation .etype { color: var(--observation); }
-    .t-observation::before { background: var(--observation); }
-    .t-final { border-left-color: var(--final); }
-    .t-final .etype { color: var(--final); }
-    .t-final::before { background: var(--final); }
-    .t-final .econtent { font-weight: 600; }
-    .t-error { border-left-color: var(--error); }
-    .t-error .etype { color: var(--error); }
-    .t-error::before { background: var(--error); }
-    .t-start { border-left-color: var(--muted); }
-    .t-start .etype { color: var(--muted); }
-    .t-start::before { background: var(--muted); }
-    .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin: 8px 2px 0; }
-    .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; }
-    .lg-thought::before { background: var(--thought); }
-    .lg-action::before { background: var(--action); }
-    .lg-observation::before { background: var(--observation); }
-    .lg-final::before { background: var(--final); }
+    .t-start { border-left-color: #94a3b8; }
+    .t-thought { border-left-color: #a78bfa; }
+    .t-action { border-left-color: #38bdf8; }
+    .t-observation { border-left-color: #34d399; }
+    .t-final { border-left-color: #fbbf24; }
+    .t-error { border-left-color: #fb7185; }
+    .t-start::before { background: #94a3b8; }
+    .t-thought::before { background: #a78bfa; }
+    .t-action::before { background: #38bdf8; }
+    .t-observation::before { background: #34d399; }
+    .t-final::before { background: #fbbf24; }
+    .t-error::before { background: #fb7185; }
+    .etype { font-size: 12px; font-weight: 900; letter-spacing: .5px; text-transform: uppercase; }
+    .estep { font-size: 11px; color: var(--muted); margin-left: 8px; }
+    .econtent { margin-top: 8px; white-space: pre-wrap; line-height: 1.65; word-break: break-word; font-size: 14px; }
+    .toolchip {
+      display: inline-block; margin-top: 9px; padding: 5px 9px; border-radius: 10px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(125,143,184,.14); color: #7dd3fc; font-size: 12px;
+    }
+
+    /* Memory */
+    .memory-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .memory-column { min-width: 0; }
+    .memory-column h4 { margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+    .memory-item {
+      border: 1px solid rgba(125,143,184,.12); background: rgba(255,255,255,.03);
+      border-radius: 16px; padding: 14px; margin-bottom: 10px;
+    }
+    .memory-item .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .memory-item .content { margin-top: 9px; font-size: 13px; line-height: 1.7; color: #edf2ff; }
+    .memory-item .meta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .importance-wrap { margin-top: 10px; }
+    .importance-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+
+    /* Context */
+    .stage-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+    .stage { position: relative; }
+    .stage .arrow {
+      position: absolute; right: -19px; top: 50%; transform: translateY(-50%); color: rgba(145,164,196,.6);
+      font-size: 20px; z-index: 1;
+    }
+    .stage:last-child .arrow { display: none; }
+    .stage .label { font-weight: 900; margin-bottom: 6px; }
+    .stage .sub { color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .budget { margin-top: 12px; }
+    .history-summary, .truncate-box { padding: 14px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(125,143,184,.12); }
+    .history-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .history-summary .mini { font-size: 12px; color: var(--muted); }
+    .truncate-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+    /* A2A / ANP / RL / Eval common */
+    .table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; }
+    .table th, .table td { padding: 9px 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 12px; vertical-align: top; }
+    .table th { color: var(--muted); font-weight: 800; }
+    .agent-cards, .config-grid, .metrics-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .flow-list { display: grid; gap: 10px; }
+    .flow-step { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(125,143,184,.12); }
+    .flow-step .arrow { color: #7dd3fc; font-size: 18px; }
+    .flow-step .text { flex: 1; min-width: 0; }
+
+    /* ANP graph */
+    .graph-wrap { overflow: hidden; border-radius: 16px; border: 1px solid rgba(125,143,184,.12); background: radial-gradient(circle at 30% 20%, rgba(124,141,255,.08), rgba(16,28,49,.18)); }
+    .graph-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .graph-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
+    .legend-node::before { background: #7dd3fc; }
+    .legend-edge::before { background: #64748b; }
+    .legend-route::before { background: #fbbf24; }
+
+    /* RL chart */
+    .chart-box { border: 1px solid rgba(125,143,184,.12); background: rgba(255,255,255,.03); border-radius: 16px; padding: 10px; overflow: hidden; }
+    .chart { width: 100%; height: 250px; display: block; }
+
+    .footer-line { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+
+    @media (max-width: 1280px) {
+      .memory-columns, .stage-flow, .truncate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sidebar { width: 250px; }
+    }
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      .app { flex-direction: column; height: auto; min-height: 100vh; }
+      .sidebar { width: 100%; position: sticky; top: 0; }
+      .main { min-height: 0; }
+      .content { padding: 14px; }
+      .grid-2, .grid-3, .grid-4, .memory-columns, .stage-flow, .truncate-grid { grid-template-columns: 1fr; }
+      .panel { min-height: auto; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🤖 HelloAgents · Agent 流程可视化</h1>
-    <span class="badge">ReAct：思考 → 行动 → 观察 → 最终答案</span>
-  </header>
-  <div class="wrap">
-    <div class="controls">
-      <input id="q" type="text" value="请计算 15 * 23 + 45 等于多少？" placeholder="输入一个问题..." />
-      <select id="mode">
-        <option value="demo">演示模式（无需 LLM）</option>
-        <option value="live">真实模式（读取 .env 的 LLM）</option>
-      </select>
-      <button id="runBtn">运行</button>
-    </div>
-    <div class="legend">
-      <span class="lg-thought">思考 Thought</span>
-      <span class="lg-action">行动 Action</span>
-      <span class="lg-observation">观察 Observation</span>
-      <span class="lg-final">最终答案 Final</span>
-    </div>
-    <div class="status" id="status"></div>
-    <div class="timeline" id="timeline"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="title">🚀 HelloAgents · 终极可视化控制台</div>
+        <div class="sub">单页多模块 Dashboard｜中文界面｜live / demo 双模式展示</div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="sidebar-footer">
+        <div><strong>使用说明</strong></div>
+        <div>左侧切换 9 个面板；首次打开时按需请求对应 API。</div>
+        <div>ReAct 面板保留原有 SSE 流式 trace，其他面板均为 JSON 驱动。</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>🚀 HelloAgents · 终极可视化控制台</h1>
+          <div class="muted" style="font-size:12px;margin-top:4px;">memory · context · protocols · rl · evaluation · ReAct trace</div>
+        </div>
+        <div class="meta">
+          <span class="pill live" id="version-pill">live</span>
+          <span class="pill" id="sub-pill">加载中…</span>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="panel active" id="panel-overview">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🧭</div>
+                <div>
+                  <h2>概览 Overview</h2>
+                  <p>九大子系统的当前可用性、关键指标与入口总览。</p>
+                </div>
+              </div>
+              <div class="row">
+                <span class="tag live" id="overview-source">live</span>
+                <span class="badge" id="overview-version">v0.0.0</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div id="overview-grid" class="overview-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-react">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🧠</div>
+                <div>
+                  <h2>ReAct 流程</h2>
+                  <p>保持原有 SSE trace：思考 → 行动 → 观察 → 最终答案。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag live">live</span></div>
+            </div>
+            <div class="panel-body">
+              <div class="react-controls">
+                <input id="react-q" type="text" value="请计算 15 * 23 + 45 等于多少？" placeholder="输入一个问题..." />
+                <select id="react-mode">
+                  <option value="demo">演示模式（无需 LLM）</option>
+                  <option value="live">真实模式（读取 .env 的 LLM）</option>
+                </select>
+                <button id="react-run">运行</button>
+              </div>
+              <div class="legend">
+                <span class="lg-start">Start</span>
+                <span class="lg-thought">Thought</span>
+                <span class="lg-action">Action</span>
+                <span class="lg-observation">Observation</span>
+                <span class="lg-final">Final</span>
+              </div>
+              <div id="react-status" class="muted" style="margin: 8px 2px 14px; min-height: 20px;"></div>
+              <div id="react-timeline" class="timeline"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-memory">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🧠</div>
+                <div>
+                  <h2>记忆 Memory</h2>
+                  <p>工作 / 情景 / 语义 / 感知四类记忆的高保真样本与统计。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag demo">demo</span></div>
+            </div>
+            <div class="panel-body" id="memory-root"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-context">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🧩</div>
+                <div>
+                  <h2>上下文 Context</h2>
+                  <p>GSSC（Gather → Select → Structure → Compress）流水线、历史压缩与工具截断示意。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag live">live</span></div>
+            </div>
+            <div class="panel-body" id="context-root"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-mcp">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🔌</div>
+                <div>
+                  <h2>MCP</h2>
+                  <p>上下文对象的 messages / tools / resources / metadata 四段结构。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag live">live</span></div>
+            </div>
+            <div class="panel-body" id="mcp-root"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-a2a">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🤝</div>
+                <div>
+                  <h2>A2A</h2>
+                  <p>Agent 注册、网络组织与任务委派示意。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag live">live</span></div>
+            </div>
+            <div class="panel-body" id="a2a-root"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-anp">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">🌐</div>
+                <div>
+                  <h2>ANP</h2>
+                  <p>服务发现、拓扑网络、消息路由与广播。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag live">live</span></div>
+            </div>
+            <div class="panel-body" id="anp-root"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-rl">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">⚙️</div>
+                <div>
+                  <h2>强化学习 RL</h2>
+                  <p>SFT / GRPO / PPO 的训练配置、奖励样例与曲线演示。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag demo">demo</span></div>
+            </div>
+            <div class="panel-body" id="rl-root"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-eval">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div style="font-size:28px;">📊</div>
+                <div>
+                  <h2>评估 Evaluation</h2>
+                  <p>BFCL 真实指标 + GAIA / Win Rate / LLM Judge 的混合展示。</p>
+                </div>
+              </div>
+              <div class="row"><span class="tag mixed">mixed</span></div>
+            </div>
+            <div class="panel-body" id="eval-root"></div>
+          </div>
+        </section>
+      </div>
+    </main>
   </div>
 
   <script>
-    const LABELS = {
-      start: "开始", thought: "思考", action: "行动",
-      observation: "观察", final: "最终答案", error: "错误", end: "结束"
+    const PANELS = [
+      { key: 'overview', title: '概览 Overview', icon: '🧭', desc: '九大模块总览', endpoint: '/api/overview', source: 'live' },
+      { key: 'react', title: 'ReAct 流程', icon: '🧠', desc: 'SSE 推理链路', endpoint: '/api/run', source: 'live' },
+      { key: 'memory', title: '记忆 Memory', icon: '🧠', desc: '四类记忆示意', endpoint: '/api/memory', source: 'demo' },
+      { key: 'context', title: '上下文 Context', icon: '🧩', desc: 'GSSC 管线', endpoint: '/api/context', source: 'live' },
+      { key: 'mcp', title: 'MCP', icon: '🔌', desc: '上下文协议', endpoint: '/api/mcp', source: 'live' },
+      { key: 'a2a', title: 'A2A', icon: '🤝', desc: 'Agent 协作', endpoint: '/api/a2a', source: 'live' },
+      { key: 'anp', title: 'ANP', icon: '🌐', desc: '服务网络', endpoint: '/api/anp', source: 'live' },
+      { key: 'rl', title: '强化学习 RL', icon: '⚙️', desc: '奖励与训练', endpoint: '/api/rl', source: 'demo' },
+      { key: 'eval', title: '评估 Evaluation', icon: '📊', desc: 'BFCL / GAIA / WinRate', endpoint: '/api/eval', source: 'mixed' },
+    ];
+
+    const state = {
+      loaded: new Set(),
+      data: {},
+      react: { es: null }
     };
-    const runBtn = document.getElementById("runBtn");
-    const timeline = document.getElementById("timeline");
-    const statusEl = document.getElementById("status");
-    let es = null;
 
-    function addEvent(ev) {
-      if (ev.type === "end") { setStatus("✅ 流程结束"); return; }
-      const div = document.createElement("div");
-      div.className = "event t-" + ev.type;
-      const label = LABELS[ev.type] || ev.type;
-      const step = ev.step ? `<span class="estep">第 ${ev.step} 步</span>` : "";
-      let inner = `<div><span class="etype">${label}</span>${step}</div>`;
-      if (ev.content) inner += `<div class="econtent">${escapeHtml(ev.content)}</div>`;
-      if (ev.tool) inner += `<div class="tool">${escapeHtml(ev.tool)}[${escapeHtml(ev.tool_input || "")}]</div>`;
-      div.innerHTML = inner;
-      timeline.appendChild(div);
-      div.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
+    const nav = document.getElementById('nav');
+    const subPill = document.getElementById('sub-pill');
+    const versionPill = document.getElementById('version-pill');
+    const overviewVersion = document.getElementById('overview-version');
+    const overviewSource = document.getElementById('overview-source');
 
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
       }[c]));
     }
-    function setStatus(s) { statusEl.textContent = s; }
 
-    function run() {
-      if (es) es.close();
-      timeline.innerHTML = "";
-      const q = document.getElementById("q").value.trim();
-      const mode = document.getElementById("mode").value;
-      runBtn.disabled = true;
-      setStatus("⏳ 运行中...（" + (mode === "live" ? "真实 LLM" : "演示模式") + "）");
-      es = new EventSource(`/api/run?mode=${mode}&q=${encodeURIComponent(q)}`);
-      es.onmessage = (e) => {
+    function jsonHighlight(value) {
+      const json = JSON.stringify(value, null, 2);
+      return escapeHtml(json)
+        .replace(/(&quot;.*?&quot;)(?=:\s)/g, '<span class="key">$1</span>')
+        .replace(/: (&quot;.*?&quot;)/g, ': <span class="string">$1</span>')
+        .replace(/: (-?\d+(?:\.\d+)?(?:e[+\-]?\d+)?)/gi, ': <span class="number">$1</span>')
+        .replace(/: (true|false)/g, ': <span class="boolean">$1</span>')
+        .replace(/: (null)/g, ': <span class="null">$1</span>');
+    }
+
+    function kvTable(obj) {
+      const rows = Object.entries(obj).map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${typeof v === 'object' && v !== null ? escapeHtml(JSON.stringify(v)) : escapeHtml(v)}</td></tr>`).join('');
+      return `<table class="kv">${rows}</table>`;
+    }
+
+    function badge(text, cls = '') {
+      return `<span class="badge ${cls}">${escapeHtml(text)}</span>`;
+    }
+
+    function tag(text, cls = '') {
+      return `<span class="tag ${cls}">${escapeHtml(text)}</span>`;
+    }
+
+    function setActivePanel(key) {
+      document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.key === key));
+      document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${key}`));
+      const panel = document.getElementById(`panel-${key}`);
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      subPill.textContent = PANELS.find(p => p.key === key)?.title || key;
+      if (!state.loaded.has(key)) loadPanel(key);
+    }
+
+    function loadPanel(key) {
+      const panel = PANELS.find(p => p.key === key);
+      if (!panel) return;
+      state.loaded.add(key);
+      if (key === 'react') return;
+      const root = document.getElementById(`${key}-root`);
+      if (!root) return;
+      root.innerHTML = '<div class="card"><div class="muted">加载中…</div></div>';
+      fetch(panel.endpoint)
+        .then(r => r.json())
+        .then(data => {
+          state.data[key] = data;
+          renderPanel(key, data);
+          if (key === 'overview') {
+            versionPill.textContent = `v${data.version || 'unknown'}`;
+            overviewVersion.textContent = `v${data.version || 'unknown'}`;
+            overviewSource.textContent = data.source || 'live';
+          }
+        })
+        .catch(err => {
+          root.innerHTML = `<div class="card"><div class="badge bad">加载失败</div><div class="panel-note">${escapeHtml(err.message || err)}</div></div>`;
+        });
+    }
+
+    function renderPanel(key, data) {
+      const root = document.getElementById(`${key}-root`);
+      if (!root) return;
+      if (key === 'overview') return renderOverview(root, data);
+      if (key === 'memory') return renderMemory(root, data);
+      if (key === 'context') return renderContext(root, data);
+      if (key === 'mcp') return renderMCP(root, data);
+      if (key === 'a2a') return renderA2A(root, data);
+      if (key === 'anp') return renderANP(root, data);
+      if (key === 'rl') return renderRL(root, data);
+      if (key === 'eval') return renderEval(root, data);
+    }
+
+    function renderOverview(root, data) {
+      const cards = data.modules.map(mod => {
+        return `
+          <article class="card overview-card" data-jump="${escapeHtml(mod.key)}">
+            <div class="row" style="justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:24px;">${mod.key === 'overview' ? '🧭' : mod.key === 'react' ? '🧠' : mod.key === 'memory' ? '🧠' : mod.key === 'context' ? '🧩' : mod.key === 'mcp' ? '🔌' : mod.key === 'a2a' ? '🤝' : mod.key === 'anp' ? '🌐' : mod.key === 'rl' ? '⚙️' : '📊'}</div>
+                <h3 style="margin-top:8px;">${escapeHtml(mod.title)}</h3>
+              </div>
+              ${tag(mod.source, mod.source === 'live' ? 'live' : mod.source === 'mixed' ? 'mixed' : 'demo')}
+            </div>
+            <div class="desc">${escapeHtml(mod.description)}</div>
+            <div class="metric"><span>Headline metric</span><strong>${escapeHtml(mod.metric)}</strong></div>
+          </article>`;
+      }).join('');
+      root.innerHTML = `<div class="overview-grid">${cards}</div>`;
+      root.querySelectorAll('[data-jump]').forEach(node => {
+        node.addEventListener('click', () => setActivePanel(node.dataset.jump));
+      });
+    }
+
+    function renderMemory(root, data) {
+      const types = [
+        ['working', '工作记忆', data.working],
+        ['episodic', '情景记忆', data.episodic],
+        ['semantic', '语义记忆', data.semantic],
+        ['perceptual', '感知记忆', data.perceptual],
+      ];
+      const total = data.stats.count || 0;
+      const strip = `
+        <div class="grid grid-4" style="margin-bottom:14px;">
+          <div class="card"><div class="tiny">总条数</div><div style="font-size:24px;font-weight:900;">${total}</div></div>
+          <div class="card"><div class="tiny">平均重要性</div><div style="font-size:24px;font-weight:900;">${Number(data.stats.avg_importance).toFixed(3)}</div></div>
+          <div class="card"><div class="tiny">容量使用</div><div style="font-size:24px;font-weight:900;">${Math.round((data.stats.capacity_usage || 0) * 100)}%</div></div>
+          <div class="card"><div class="tiny">Token 使用</div><div style="font-size:24px;font-weight:900;">${Math.round((data.stats.token_usage || 0) * 100)}%</div></div>
+        </div>`;
+      const cols = types.map(([key, label, items]) => `
+        <div class="memory-column">
+          <h4><span>${label}</span><span class="tag demo">${items.length} 项</span></h4>
+          ${items.map(item => `
+            <div class="memory-item">
+              <div class="head">
+                <div><strong>${escapeHtml(item.id)}</strong></div>
+                <span class="badge ${item.importance >= 0.8 ? 'good' : item.importance >= 0.65 ? 'warn' : 'demo'}">${(item.importance * 100).toFixed(0)}%</span>
+              </div>
+              <div class="content">${escapeHtml(item.content)}</div>
+              <div class="importance-wrap">
+                <div class="importance-label"><span>importance</span><span>${item.importance.toFixed(2)}</span></div>
+                <div class="bar ${item.importance >= 0.8 ? 'good' : item.importance >= 0.65 ? 'warn' : 'bad'}"><span style="width:${(item.importance * 100).toFixed(0)}%"></span></div>
+              </div>
+              <div class="meta">
+                ${tag(item.memory_type, 'demo')}
+                <span class="tiny">${escapeHtml(item.timestamp)}</span>
+              </div>
+            </div>`).join('')}
+        </div>`).join('');
+      root.innerHTML = `
+        ${strip}
+        <div class="memory-columns">${cols}</div>
+        <div class="panel-note">
+          <strong>整合 / 遗忘示意：</strong>
+          ${escapeHtml(data.consolidation.result)}；${escapeHtml(data.forgetting.result)}。
+        </div>`;
+    }
+
+    function renderContext(root, data) {
+      const stages = data.pipeline.map((stage, idx) => `
+        <div class="card stage">
+          <div class="label">${escapeHtml(stage.stage)}</div>
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <span class="badge">${stage.packets} packets</span>
+            <span class="badge">${stage.tokens_out} tokens</span>
+          </div>
+          <div class="sub" style="margin-top:10px;">输入 ${stage.tokens_in} tokens → 输出 ${stage.tokens_out} tokens</div>
+          <div class="arrow">→</div>
+        </div>`).join('');
+      const packetCards = data.packets.map(packet => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <div><strong>${escapeHtml(packet.metadata.type)}</strong><div class="tiny">${escapeHtml(packet.metadata.packet_id)}</div></div>
+            <span class="badge">${packet.token_count} tok</span>
+          </div>
+          <div class="desc" style="margin-top:8px;">${escapeHtml(packet.content)}</div>
+          <div class="row" style="margin-top:10px;gap:8px;">
+            <span class="tag demo">relevance ${packet.relevance_score.toFixed(2)}</span>
+            <span class="tag demo">${escapeHtml(packet.timestamp)}</span>
+          </div>
+        </div>`).join('');
+      const budgetPct = Math.min(100, (data.budget.used_tokens / data.budget.available_tokens) * 100);
+      root.innerHTML = `
+        <div class="section">
+          <div class="section-title"><span>GSSC 流水线</span><span class="tag live">live</span></div>
+          <div class="stage-flow">${stages}</div>
+          <div class="budget">
+            <div class="row" style="justify-content:space-between;margin-bottom:8px;"><span class="tiny">最终 prompt 预算使用</span><span class="tiny">${data.budget.used_tokens} / ${data.budget.available_tokens} tokens</span></div>
+            <div class="bar"><span style="width:${budgetPct.toFixed(1)}%"></span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>候选 ContextPacket</span><span class="tag live">tokenized</span></div>
+          <div class="grid grid-2">${packetCards}</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>HistoryManager / ObservationTruncator</span><span class="tag live">live</span></div>
+          <div class="history-summary">
+            <div class="card"><div class="tiny">总轮次</div><div style="font-size:22px;font-weight:900;">${data.history.total_rounds}</div><div class="mini">min_retain_rounds = ${data.history.min_retain_rounds}</div></div>
+            <div class="card"><div class="tiny">压缩阈值</div><div style="font-size:22px;font-weight:900;">${data.history.compression_threshold}</div><div class="mini">保留最近 ${data.history.retained_rounds} 轮</div></div>
+            <div class="card"><div class="tiny">摘要</div><div style="font-size:12px;line-height:1.65;margin-top:8px;">${escapeHtml(data.history.summary)}</div></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>工具输出截断前后</span><span class="tag live">head</span></div>
+          <div class="truncate-grid">
+            <div class="truncate-box">
+              <div class="row" style="justify-content:space-between;margin-bottom:8px;"><strong>Before</strong><span class="badge">${data.truncation.before.lines} lines</span></div>
+              <pre>${escapeHtml(`tool-output-001:\n${Array.from({length:8}, (_,i)=>`第 ${i+1} 行内容...`).join('\n')}\n...\n(共 ${data.truncation.before.lines} 行, ${data.truncation.before.bytes} bytes)`)}</pre>
+            </div>
+            <div class="truncate-box">
+              <div class="row" style="justify-content:space-between;margin-bottom:8px;"><strong>After</strong><span class="badge">truncated</span></div>
+              <pre>${escapeHtml(data.truncation.after.preview)}</pre>
+              <div class="footer-line">完整输出保存：${escapeHtml(data.truncation.after.full_output_path)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderMCP(root, data) {
+      const sections = data.explanation.map(item => `
+        <div class="card"><strong>${escapeHtml(item.key)}</strong><div class="desc">${escapeHtml(item.description)}</div></div>`).join('');
+      root.innerHTML = `
+        <div class="section">
+          <div class="section-title"><span>结构说明</span><span class="tag live">live</span></div>
+          <div class="grid grid-4">${sections}</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Built Context</span><span class="tag live">round-trip ${data.round_trip_equal ? 'ok' : 'mismatch'}</span></div>
+          <pre class="json">${jsonHighlight(data.built_context)}</pre>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Parsed Context</span><span class="tag live">parse_context</span></div>
+          <pre class="json">${jsonHighlight(data.parsed_context)}</pre>
+        </div>`;
+    }
+
+    function renderA2A(root, data) {
+      const cards = data.agents.map(agent => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <div><h3>${escapeHtml(agent.name)}</h3><div class="tiny">${escapeHtml(agent.description)}</div></div>
+            <span class="tag live">${escapeHtml(agent.protocol)}</span>
+          </div>
+          <table class="table" style="margin-top:10px;">
+            <tr><th>version</th><td>${escapeHtml(agent.version)}</td></tr>
+            <tr><th>capabilities</th><td>${escapeHtml(JSON.stringify(agent.capabilities))}</td></tr>
+            <tr><th>skills</th><td>${escapeHtml(agent.skills.join(', ') || '—')}</td></tr>
+          </table>
+        </div>`).join('');
+      const registryRows = data.registry.agents.map(agent => `<tr><td>${escapeHtml(agent.name)}</td><td>${escapeHtml(agent.url)}</td><td>${escapeHtml(JSON.stringify(agent.metadata || {}))}</td></tr>`).join('');
+      const flows = data.delegation_flow.map(step => `
+        <div class="flow-step">
+          <div class="badge">${escapeHtml(step.from)}</div>
+          <div class="arrow">→</div>
+          <div class="text"><div><strong>${escapeHtml(step.to)}</strong></div><div class="tiny">${escapeHtml(step.message)}</div></div>
+        </div>`).join('');
+      root.innerHTML = `
+        <div class="section"><div class="section-title"><span>Agent Cards</span><span class="tag live">live</span></div><div class="agent-cards">${cards}</div></div>
+        <div class="section"><div class="section-title"><span>Registry</span><span class="tag live">${data.registry.info.registered_agents} agents</span></div>
+          <table class="table">
+            <thead><tr><th>name</th><th>url</th><th>metadata</th></tr></thead>
+            <tbody>${registryRows}</tbody>
+          </table>
+        </div>
+        <div class="section"><div class="section-title"><span>Task Delegation Flow</span><span class="tag live">illustrative</span></div><div class="flow-list">${flows}</div></div>`;
+    }
+
+    function renderANP(root, data) {
+      const nodes = data.network.nodes.filter(Boolean);
+      const edges = data.network.edges || [];
+      const width = 860;
+      const height = 440;
+      const cx = width / 2;
+      const cy = height / 2;
+      const radius = 155;
+      const positions = nodes.map((node, idx) => {
+        const angle = (-Math.PI / 2) + (idx * Math.PI * 2 / nodes.length);
+        return {
+          ...node,
+          x: cx + Math.cos(angle) * radius,
+          y: cy + Math.sin(angle) * radius,
+        };
+      });
+      const map = Object.fromEntries(positions.map(n => [n.node_id, n]));
+      const route = data.route_example.path || [];
+      const routePairs = new Set();
+      for (let i = 0; i < route.length - 1; i++) routePairs.add(`${route[i]}->${route[i+1]}`);
+      const svgEdges = edges.map(edge => {
+        const a = map[edge.from], b = map[edge.to];
+        if (!a || !b) return '';
+        const isRoute = routePairs.has(`${edge.from}->${edge.to}`);
+        return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${isRoute ? 'route' : 'edge'}" />`;
+      }).join('');
+      const svgNodes = positions.map(node => `
+        <g>
+          <circle cx="${node.x}" cy="${node.y}" r="26" class="node ${node.status === 'active' ? 'active' : ''}" />
+          <text x="${node.x}" y="${node.y - 38}" text-anchor="middle" class="node-label">${escapeHtml(node.node_id)}</text>
+          <text x="${node.x}" y="${node.y + 46}" text-anchor="middle" class="node-sub">${escapeHtml(node.metadata.service_type || '')}</text>
+        </g>`).join('');
+      const serviceRows = data.services.map(s => `<tr><td>${escapeHtml(s.service_id)}</td><td>${escapeHtml(s.service_type)}</td><td>${escapeHtml(s.endpoint)}</td><td>${escapeHtml((s.capabilities || []).join(', '))}</td></tr>`).join('');
+      const stats = data.stats;
+      root.innerHTML = `
+        <style>
+          .graph svg { width: 100%; height: 440px; display: block; }
+          .edge { stroke: rgba(145,164,196,.45); stroke-width: 2.2; }
+          .route { stroke: #fbbf24; stroke-width: 4; stroke-linecap: round; }
+          .node { fill: rgba(33,200,246,.18); stroke: rgba(125,211,252,.68); stroke-width: 2; }
+          .node.active { fill: rgba(124,141,255,.30); stroke: rgba(124,141,255,.9); }
+          .node-label { fill: #edf4ff; font-size: 12px; font-weight: 800; }
+          .node-sub { fill: #91a4c4; font-size: 10px; }
+        </style>
+        <div class="section">
+          <div class="section-title"><span>Network Stats</span><span class="tag live">live</span></div>
+          <div class="metrics-grid">
+            <div class="card"><div class="tiny">Total Nodes</div><div style="font-size:24px;font-weight:900;">${stats.total_nodes}</div></div>
+            <div class="card"><div class="tiny">Active Nodes</div><div style="font-size:24px;font-weight:900;">${stats.active_nodes}</div></div>
+            <div class="card"><div class="tiny">Total Connections</div><div style="font-size:24px;font-weight:900;">${stats.total_connections}</div></div>
+            <div class="card"><div class="tiny">Route Path</div><div style="font-size:24px;font-weight:900;">${(data.route_example.path || []).length ? data.route_example.path.length : 0}</div></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>拓扑图</span><span class="tag live">SVG</span></div>
+          <div class="graph-legend"><span class="legend-node">Node</span><span class="legend-edge">Edge</span><span class="legend-route">Routed path</span></div>
+          <div class="graph-wrap graph">
+            <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="ANP network graph">
+              <defs>
+                <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              </defs>
+              ${svgEdges}
+              ${svgNodes}
+            </svg>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Services</span><span class="tag live">${data.services.length} services</span></div>
+          <table class="table">
+            <thead><tr><th>service_id</th><th>type</th><th>endpoint</th><th>capabilities</th></tr></thead>
+            <tbody>${serviceRows}</tbody>
+          </table>
+          <div class="panel-note">路由示例：${escapeHtml((data.route_example.path || []).join(' → ') || '无路径')}</div>
+        </div>`;
+    }
+
+    function renderRL(root, data) {
+      const configCards = Object.entries(data.configs).map(([name, cfg]) => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <h3>${escapeHtml(name)}</h3>
+            ${tag(name === 'SFT' ? 'sft' : name === 'GRPO' ? 'grpo' : 'ppo', 'demo')}
+          </div>
+          ${kvTable({
+            model_name: cfg.model_name,
+            output_dir: cfg.output_dir,
+            epochs: cfg.num_train_epochs,
+            batch_size: cfg.per_device_train_batch_size,
+            grad_accum: cfg.gradient_accumulation_steps,
+            learning_rate: cfg.learning_rate,
+            max_new_tokens: cfg.max_new_tokens,
+            temperature: cfg.temperature,
+            top_p: cfg.top_p,
+          })}
+        </div>`).join('');
+      const agg = data.aggregate;
+      const rewardsRows = data.reward_examples.map((x, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;">${escapeHtml(x.completion)}</pre></td>
+          <td>${escapeHtml(x.ground_truth)}</td>
+          <td>${escapeHtml(x.extracted_answer || '—')}</td>
+          <td><span class="badge ${x.reward > 0.5 ? 'good' : 'bad'}">${x.reward.toFixed(0)}</span></td>
+        </tr>`).join('');
+      const chart = buildLineChart(data.curve, 920, 250, 'reward');
+      root.innerHTML = `
+        <div class="section">
+          <div class="section-title"><span>训练配置</span><span class="tag demo">TrainingConfig</span></div>
+          <div class="config-grid">${configCards}</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Reward Curve</span><span class="tag demo">30 steps</span></div>
+          <div class="chart-box">${chart}</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>MathRewardFunction 样例</span><span class="tag demo">demo</span></div>
+          <table class="table">
+            <thead><tr><th>#</th><th>completion</th><th>ground_truth</th><th>extracted</th><th>reward</th></tr></thead>
+            <tbody>${rewardsRows}</tbody>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Aggregate</span><span class="tag demo">evaluate_rewards</span></div>
+          <div class="metrics-grid">
+            <div class="card"><div class="tiny">mean_reward</div><div style="font-size:24px;font-weight:900;">${agg.mean_reward}</div></div>
+            <div class="card"><div class="tiny">max_reward</div><div style="font-size:24px;font-weight:900;">${agg.max_reward}</div></div>
+            <div class="card"><div class="tiny">min_reward</div><div style="font-size:24px;font-weight:900;">${agg.min_reward}</div></div>
+            <div class="card"><div class="tiny">accuracy</div><div style="font-size:24px;font-weight:900;">${(agg.accuracy * 100).toFixed(0)}%</div></div>
+          </div>
+          <div class="panel-note">${escapeHtml(data.note)}</div>
+        </div>`;
+    }
+
+    function renderEval(root, data) {
+      const bfcl = data.bfcl;
+      const gaia = data.gaia;
+      const win = data.win_rate;
+      const judge = data.llm_judge;
+      const scoreDist = bfcl.score_distribution || {};
+      const bfclCards = `
+        <div class="metrics-grid">
+          <div class="card"><div class="tiny">Accuracy</div><div style="font-size:24px;font-weight:900;">${(bfcl.accuracy * 100).toFixed(0)}%</div><div class="bar good" style="margin-top:10px;"><span style="width:${(bfcl.accuracy * 100).toFixed(1)}%"></span></div></div>
+          <div class="card"><div class="tiny">Average Score</div><div style="font-size:24px;font-weight:900;">${bfcl.average_score.toFixed(2)}</div><div class="bar warn" style="margin-top:10px;"><span style="width:${Math.min(100, bfcl.average_score * 100).toFixed(1)}%"></span></div></div>
+          <div class="card"><div class="tiny">Avg Execution Time</div><div style="font-size:24px;font-weight:900;">${bfcl.average_execution_time.toFixed(2)}s</div></div>
+          <div class="card"><div class="tiny">Function Calls</div><div style="font-size:24px;font-weight:900;">${bfcl.function_call_stats.total_function_calls}</div></div>
+        </div>`;
+      const bfclTable = kvTable({
+        total_samples: bfcl.total_samples,
+        success_count: bfcl.success_count,
+        unique_functions: bfcl.function_call_stats.unique_functions,
+        function_names: (bfcl.function_call_stats.function_names || []).join(', '),
+        score_min: scoreDist.min,
+        score_mean: scoreDist.mean,
+        score_median: scoreDist.median,
+        score_max: scoreDist.max,
+      });
+      const levelBars = [1, 2, 3].map(level => {
+        const item = gaia.level_metrics[`Level_${level}`];
+        const rate = item.total ? item.exact_match_rate : 0;
+        return `
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:flex-start;">
+              <strong>Level ${level}</strong><span class="badge ${level === 1 ? 'good' : level === 2 ? 'warn' : 'bad'}">${item.total} 样本</span>
+            </div>
+            <div class="tiny" style="margin-top:8px;">Exact ${item.exact_match_rate.toFixed(2)} · Partial ${item.partial_match_rate.toFixed(2)}</div>
+            <div class="bar" style="margin-top:10px;"><span style="width:${(rate * 100).toFixed(1)}%"></span></div>
+            <div class="tiny" style="margin-top:8px;">Avg score ${item.average_score.toFixed(2)}</div>
+          </div>`;
+      }).join('');
+      const winStack = `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <strong>Win / Tie / Loss</strong><span class="tag demo">${win.metrics.total_comparisons} comps</span>
+          </div>
+          <div class="bar" style="margin-top:12px; display:flex; overflow:hidden; height:14px;">
+            <span style="width:${(win.metrics.win_rate * 100).toFixed(1)}%; background:linear-gradient(90deg,#22c55e,#86efac);"></span>
+            <span style="width:${(win.metrics.tie_rate * 100).toFixed(1)}%; background:linear-gradient(90deg,#fbbf24,#fde68a);"></span>
+            <span style="width:${(win.metrics.loss_rate * 100).toFixed(1)}%; background:linear-gradient(90deg,#fb7185,#fda4af);"></span>
+          </div>
+          <div class="row" style="justify-content:space-between;margin-top:10px;"><span class="tiny">Win ${(win.metrics.win_rate * 100).toFixed(0)}%</span><span class="tiny">Tie ${(win.metrics.tie_rate * 100).toFixed(0)}%</span><span class="tiny">Loss ${(win.metrics.loss_rate * 100).toFixed(0)}%</span></div>
+        </div>`;
+      const judgeBars = Object.entries(judge.dimension_averages).map(([k, v]) => `
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;"><strong>${escapeHtml(k)}</strong><span class="badge demo">${v.toFixed(1)} / 10</span></div>
+          <div class="bar" style="margin-top:10px;"><span style="width:${(v / 10 * 100).toFixed(1)}%"></span></div>
+        </div>`).join('');
+      root.innerHTML = `
+        <div class="section">
+          <div class="section-title"><span>BFCL</span><span class="tag live">live</span></div>
+          ${bfclCards}
+          <div class="grid grid-2" style="margin-top:14px;">
+            <div class="card">${bfclTable}</div>
+            <div class="card"><pre class="json">${jsonHighlight({ category_metrics: bfcl.category_metrics, function_call_stats: bfcl.function_call_stats })}</pre></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>GAIA</span><span class="tag demo">demo</span></div>
+          <div class="grid grid-3">${levelBars}</div>
+          <div class="panel-note">Average execution time：${gaia.average_execution_time.toFixed(2)}s · total_samples：${gaia.total_samples}</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Win Rate</span><span class="tag demo">demo</span></div>
+          ${winStack}
+          <div class="panel-note">${escapeHtml(win.note)}</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>LLM Judge</span><span class="tag demo">demo</span></div>
+          <div class="grid grid-4">${judgeBars}</div>
+          <div class="metrics-grid" style="margin-top:14px;">
+            <div class="card"><div class="tiny">Average Total Score</div><div style="font-size:24px;font-weight:900;">${judge.average_total_score.toFixed(2)}</div></div>
+            <div class="card"><div class="tiny">Pass Rate</div><div style="font-size:24px;font-weight:900;">${(judge.pass_rate * 100).toFixed(0)}%</div></div>
+            <div class="card"><div class="tiny">Excellent Rate</div><div style="font-size:24px;font-weight:900;">${(judge.excellent_rate * 100).toFixed(0)}%</div></div>
+            <div class="card"><div class="tiny">Source</div><div style="font-size:24px;font-weight:900;">demo</div></div>
+          </div>
+        </div>`;
+    }
+
+    function buildLineChart(points, width = 900, height = 250, label = 'value') {
+      const padding = 28;
+      const values = points.map(p => p.reward);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const span = Math.max(0.001, max - min);
+      const xStep = (width - padding * 2) / Math.max(1, points.length - 1);
+      const coords = points.map((p, i) => {
+        const x = padding + i * xStep;
+        const y = height - padding - ((p.reward - min) / span) * (height - padding * 2);
+        return [x, y];
+      });
+      const d = coords.map((c, i) => `${i ? 'L' : 'M'} ${c[0].toFixed(1)} ${c[1].toFixed(1)}`).join(' ');
+      const area = `M ${padding} ${height - padding} ${coords.map(c => `L ${c[0].toFixed(1)} ${c[1].toFixed(1)}`).join(' ')} L ${width - padding} ${height - padding} Z`;
+      const ticks = Array.from({length: 5}, (_, i) => {
+        const y = padding + (height - padding * 2) * i / 4;
+        const value = (max - (span * i / 4)).toFixed(2);
+        return `<g><line x1="${padding}" x2="${width - padding}" y1="${y}" y2="${y}" stroke="rgba(145,164,196,.16)" /><text x="8" y="${y + 4}" fill="#91a4c4" font-size="10">${value}</text></g>`;
+      }).join('');
+      const xLabels = points.filter((_, i) => i % 5 === 0 || i === points.length - 1).map((p, i) => {
+        const idx = points.findIndex(pt => pt.step === p.step);
+        const x = padding + idx * xStep;
+        return `<text x="${x}" y="${height - 6}" text-anchor="middle" fill="#91a4c4" font-size="10">${p.step}</text>`;
+      }).join('');
+      return `
+        <svg class="chart" viewBox="0 0 ${width} ${height}" aria-label="${escapeHtml(label)} chart">
+          ${ticks}
+          <path d="${area}" fill="rgba(124,141,255,.13)" />
+          <path d="${d}" fill="none" stroke="url(#chartGrad)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+          ${coords.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.3" fill="#7dd3fc" stroke="#0d1728" stroke-width="2" />`).join('')}
+          ${xLabels}
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#7c8dff" />
+              <stop offset="100%" stop-color="#21c8f6" />
+            </linearGradient>
+          </defs>
+        </svg>`;
+    }
+
+    function renderReactEvent(ev) {
+      if (ev.type === 'end') { setReactStatus('✅ 流程结束'); return; }
+      const div = document.createElement('div');
+      div.className = `event t-${ev.type}`;
+      const label = { start: '开始', thought: '思考', action: '行动', observation: '观察', final: '最终答案', error: '错误' }[ev.type] || ev.type;
+      const step = ev.step ? `<span class="estep">第 ${ev.step} 步</span>` : '';
+      let html = `<div><span class="etype">${label}</span>${step}</div>`;
+      if (ev.content) html += `<div class="econtent">${escapeHtml(ev.content)}</div>`;
+      if (ev.tool) html += `<div class="toolchip">${escapeHtml(ev.tool)}[${escapeHtml(ev.tool_input || '')}]</div>`;
+      div.innerHTML = html;
+      document.getElementById('react-timeline').appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    function setReactStatus(text) {
+      document.getElementById('react-status').textContent = text;
+    }
+
+    function stopReactStream() {
+      if (state.react.es) {
+        state.react.es.close();
+        state.react.es = null;
+      }
+    }
+
+    function runReact() {
+      stopReactStream();
+      const timeline = document.getElementById('react-timeline');
+      timeline.innerHTML = '';
+      const q = document.getElementById('react-q').value.trim();
+      const mode = document.getElementById('react-mode').value;
+      setReactStatus(`⏳ 运行中...（${mode === 'live' ? '真实 LLM' : '演示模式'}）`);
+      const btn = document.getElementById('react-run');
+      btn.disabled = true;
+      state.react.es = new EventSource(`/api/run?mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(q)}`);
+      state.react.es.onmessage = (e) => {
         const ev = JSON.parse(e.data);
-        addEvent(ev);
-        if (ev.type === "end") { es.close(); runBtn.disabled = false; }
+        renderReactEvent(ev);
+        if (ev.type === 'end') {
+          stopReactStream();
+          btn.disabled = false;
+        }
       };
-      es.onerror = () => {
-        setStatus("⚠️ 连接中断或已结束");
-        es.close(); runBtn.disabled = false;
+      state.react.es.onerror = () => {
+        setReactStatus('⚠️ 连接已结束或中断');
+        stopReactStream();
+        btn.disabled = false;
       };
     }
-    runBtn.addEventListener("click", run);
+
+    function buildNav() {
+      nav.innerHTML = PANELS.map(panel => `
+        <button class="nav-item" data-key="${panel.key}">
+          <div class="nav-emoji">${panel.icon}</div>
+          <div class="nav-meta"><div class="nav-title">${escapeHtml(panel.title)}</div><div class="nav-desc">${escapeHtml(panel.desc)}</div></div>
+          <span class="dot ${panel.source === 'live' ? 'live' : 'demo'}"></span>
+        </button>`).join('');
+      nav.querySelectorAll('.nav-item').forEach(btn => {
+        btn.addEventListener('click', () => setActivePanel(btn.dataset.key));
+      });
+    }
+
+    buildNav();
+
+    document.getElementById('react-run').addEventListener('click', runReact);
+    document.getElementById('react-q').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runReact();
+    });
+
+    fetch('/api/overview')
+      .then(r => r.json())
+      .then(data => {
+        state.data.overview = data;
+        renderOverview(document.getElementById('overview-grid').parentElement, data);
+        state.loaded.add('overview');
+        versionPill.textContent = `v${data.version || 'unknown'}`;
+        overviewVersion.textContent = `v${data.version || 'unknown'}`;
+        overviewSource.textContent = data.source || 'live';
+        setActivePanel('overview');
+      })
+      .catch(() => {
+        document.getElementById('overview-grid').innerHTML = '<div class="card">概览加载失败</div>';
+      });
+
+    // Re-render overview with same helper after data load.
+    function renderOverview(root, data) {
+      const gridRoot = document.getElementById('overview-grid');
+      const cards = data.modules.map(mod => `
+        <article class="card overview-card" data-jump="${escapeHtml(mod.key)}">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div style="font-size:24px;">${mod.key === 'overview' ? '🧭' : mod.key === 'react' ? '🧠' : mod.key === 'memory' ? '🧠' : mod.key === 'context' ? '🧩' : mod.key === 'mcp' ? '🔌' : mod.key === 'a2a' ? '🤝' : mod.key === 'anp' ? '🌐' : mod.key === 'rl' ? '⚙️' : '📊'}</div>
+              <h3 style="margin-top:8px;">${escapeHtml(mod.title)}</h3>
+            </div>
+            ${tag(mod.source, mod.source === 'live' ? 'live' : mod.source === 'mixed' ? 'mixed' : 'demo')}
+          </div>
+          <div class="desc">${escapeHtml(mod.description)}</div>
+          <div class="metric"><span>Headline metric</span><strong>${escapeHtml(mod.metric)}</strong></div>
+        </article>`).join('');
+      gridRoot.innerHTML = cards;
+      gridRoot.querySelectorAll('[data-jump]').forEach(node => node.addEventListener('click', () => setActivePanel(node.dataset.jump)));
+    }
+
   </script>
 </body>
 </html>
