@@ -475,7 +475,7 @@ def _anp_builder() -> Dict[str, Any]:
     network.connect_nodes("svc-vision", "svc-tooling")
     network.connect_nodes("svc-tooling", "svc-planner")
 
-    route = network.route_message("svc-vision", "svc-nlp", {"task": "describe"})
+    route = network.route_message("svc-vision", "svc-planner", {"task": "describe"})
     broadcast = network.broadcast_message("svc-planner", {"task": "sync"})
     stats = network.get_network_stats()
 
@@ -498,7 +498,7 @@ def _anp_builder() -> Dict[str, Any]:
             "nodes": [network.get_node_info(s.service_id) for s in services],
             "edges": edges,
         },
-        "route_example": {"from": "svc-vision", "to": "svc-nlp", "path": route},
+        "route_example": {"from": "svc-vision", "to": "svc-planner", "path": route},
         "broadcast_example": {"from": "svc-planner", "recipients": broadcast},
         "stats": stats,
     }
@@ -668,7 +668,12 @@ def _eval_builder() -> Dict[str, Any]:
     }
 
 
+_OVERVIEW_CACHE: Dict[str, Any] = {}
+
+
 def build_overview() -> Dict[str, Any]:
+    if _OVERVIEW_CACHE:
+        return _OVERVIEW_CACHE["data"]
     context = _context_builder()
     mcp = _mcp_builder()
     a2a = _a2a_builder()
@@ -743,11 +748,12 @@ def build_overview() -> Dict[str, Any]:
         },
     ]
 
-    return {
+    _OVERVIEW_CACHE["data"] = {
         "source": "live",
         "version": __version__,
         "modules": modules,
     }
+    return _OVERVIEW_CACHE["data"]
 
 
 __all__ = [
