@@ -15,16 +15,18 @@
 """
 
 import asyncio
+import hashlib
 import importlib.util
 import json
 import math
+import os
 import random
 import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -71,6 +73,9 @@ def overview() -> JSONResponse:
                "detail": "奖励函数（TRL 训练器可选）", "trl": _has_module("trl")},
         "evaluation": {"label": "评估 Evaluation", "available": _has_module("datasets"),
                        "detail": "BFCL / GAIA / LLM Judge / Win Rate"},
+        "kb": {"label": "知识库 Knowledge Base", "available": _has_module("sklearn"),
+               "detail": "上传 md/pdf/docx 等文档，切块索引后供检索与问答",
+               "markitdown": _has_module("markitdown")},
         "agent": {"label": "ReAct Agent", "available": True,
                   "detail": "思考-行动-观察 循环追踪"},
     }
@@ -208,6 +213,8 @@ class ContextBuildRequest(BaseModel):
     min_relevance: float = 0.3
     enable_mmr: bool = True
     mmr_lambda: float = 0.7
+    use_kb: bool = False
+    kb_top_k: int = 4
 
 
 @router.post("/context/build")
@@ -226,8 +233,17 @@ def context_build(req: ContextBuildRequest) -> JSONResponse:
         builder = ContextBuilder(config=config)
 
         history = [Message(m.content, m.role) for m in req.history if m.content.strip()]
-        extra = [ContextPacket(content=c, metadata={"type": "rag"})
+        extra = [ContextPacket(content=c, metadata={"type": "retrieval"})
                  for c in req.extra_packets if c.strip()]
+
+        kb_hits: List[Dict[str, Any]] = []
+        if req.use_kb:
+            kb_hits = _kb_search(req.query, top_k=req.kb_top_k)
+            extra.extend(
+                ContextPacket(content=h["content"],
+                              metadata={"type": "knowledge_base", "source": h["doc_name"]})
+                for h in kb_hits
+            )
 
         gathered = builder._gather(
             user_query=req.query, conversation_history=history,
@@ -260,6 +276,7 @@ def context_build(req: ContextBuildRequest) -> JSONResponse:
             "structure": {"text": structured, "tokens": count_tokens(structured)},
             "compress": {"text": final, "tokens": count_tokens(final),
                          "compressed": final != structured},
+            "kb_hits": kb_hits,
         })
     except Exception as e:
         return _err(str(e))
@@ -760,5 +777,215 @@ def eval_gaia_demo() -> JSONResponse:
         metrics = GAIAMetrics()
         computed = metrics.compute_metrics(_GAIA_DEMO_RESULTS)
         return _ok({"results": _GAIA_DEMO_RESULTS, "metrics": computed, "demo": True})
+    except Exception as e:
+        return _err(str(e))
+
+
+# ---------------------------------------------------------------------------
+# 知识库 Knowledge Base（文档上传 + 切块索引 + 检索 + 问答）
+# ---------------------------------------------------------------------------
+
+_KB_DIR = Path(os.environ.get("KB_DIR", str(Path.home() / ".hello_agents" / "kb")))
+_KB_FILES_DIR = _KB_DIR / "files"
+_KB_STATE_FILE = _KB_DIR / "state.json"
+_KB_ALLOWED_EXTS = {".md", ".markdown", ".txt", ".pdf", ".doc", ".docx",
+                    ".html", ".htm", ".csv", ".json"}
+_KB_MAX_FILE_BYTES = 50 * 1024 * 1024
+
+_kb_lock = threading.Lock()
+_kb_docs: Dict[str, Dict[str, Any]] = {}
+_kb_chunks: List[Dict[str, Any]] = []
+_kb_vectorizer = None
+_kb_matrix = None
+_kb_loaded = False
+
+
+def _kb_extract_text(path: Path) -> str:
+    ext = path.suffix.lower()
+    if ext in (".md", ".markdown", ".txt", ".csv", ".json"):
+        return path.read_text(encoding="utf-8", errors="replace")
+    from hello_agents.memory.rag.pipeline import _convert_to_markdown
+    return _convert_to_markdown(str(path))
+
+
+def _kb_reindex_locked() -> None:
+    global _kb_vectorizer, _kb_matrix
+    if not _kb_chunks:
+        _kb_vectorizer, _kb_matrix = None, None
+        return
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    # 字符 n-gram：对中文无需分词也能得到有效相似度
+    _kb_vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(1, 3), max_features=50000)
+    _kb_matrix = _kb_vectorizer.fit_transform([c["content"] for c in _kb_chunks])
+
+
+def _kb_save_locked() -> None:
+    _KB_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = _KB_STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"docs": _kb_docs, "chunks": _kb_chunks},
+                              ensure_ascii=False), encoding="utf-8")
+    tmp.replace(_KB_STATE_FILE)
+
+
+def _kb_ensure_loaded() -> None:
+    global _kb_loaded, _kb_docs, _kb_chunks
+    with _kb_lock:
+        if _kb_loaded:
+            return
+        _kb_loaded = True
+        if _KB_STATE_FILE.exists():
+            try:
+                state = json.loads(_KB_STATE_FILE.read_text(encoding="utf-8"))
+                _kb_docs = state.get("docs", {})
+                _kb_chunks = state.get("chunks", [])
+                _kb_reindex_locked()
+            except Exception:
+                _kb_docs, _kb_chunks = {}, []
+
+
+def _kb_search(query: str, top_k: int = 5, min_score: float = 0.05) -> List[Dict[str, Any]]:
+    _kb_ensure_loaded()
+    with _kb_lock:
+        if _kb_vectorizer is None or _kb_matrix is None:
+            return []
+        from sklearn.metrics.pairwise import cosine_similarity
+        sims = cosine_similarity(_kb_vectorizer.transform([query]), _kb_matrix)[0]
+        order = sims.argsort()[::-1][:max(1, top_k)]
+        hits = []
+        for i in order:
+            score = float(sims[i])
+            if score < min_score:
+                continue
+            c = _kb_chunks[int(i)]
+            hits.append({
+                "score": round(score, 4),
+                "doc_id": c["doc_id"],
+                "doc_name": _kb_docs.get(c["doc_id"], {}).get("name", "?"),
+                "chunk_index": c["chunk_index"],
+                "content": c["content"],
+            })
+        return hits
+
+
+@router.get("/kb/docs")
+def kb_docs() -> JSONResponse:
+    _kb_ensure_loaded()
+    with _kb_lock:
+        docs = sorted(_kb_docs.values(), key=lambda d: d.get("uploaded_at", ""), reverse=True)
+        return _ok({"docs": docs, "total_chunks": len(_kb_chunks),
+                    "markitdown": _has_module("markitdown"),
+                    "storage_dir": str(_KB_DIR)})
+
+
+@router.post("/kb/upload")
+async def kb_upload(file: UploadFile = File(...)) -> JSONResponse:
+    _kb_ensure_loaded()
+    try:
+        name = Path(file.filename or "unnamed").name
+        ext = Path(name).suffix.lower()
+        if ext not in _KB_ALLOWED_EXTS:
+            return _err(f"不支持的文件类型 {ext or '(无扩展名)'}，支持：{', '.join(sorted(_KB_ALLOWED_EXTS))}")
+        if ext in (".pdf", ".doc", ".docx", ".html", ".htm") and not _has_module("markitdown"):
+            return _err("解析 PDF/Word/HTML 需要 markitdown：pip install markitdown")
+
+        raw = await file.read()
+        if len(raw) > _KB_MAX_FILE_BYTES:
+            return _err(f"文件过大（>{_KB_MAX_FILE_BYTES // 1024 // 1024}MB）")
+
+        doc_id = hashlib.md5(raw).hexdigest()[:12]
+        _KB_FILES_DIR.mkdir(parents=True, exist_ok=True)
+        saved_path = _KB_FILES_DIR / f"{doc_id}_{name}"
+        saved_path.write_bytes(raw)
+
+        text = _kb_extract_text(saved_path)
+        if not text or not text.strip():
+            saved_path.unlink(missing_ok=True)
+            return _err("未能从文件中提取到文本内容")
+
+        from hello_agents.memory.rag.document import Document, DocumentProcessor
+        processor = DocumentProcessor(chunk_size=600, chunk_overlap=100)
+        doc = Document(content=text, metadata={"source": name}, doc_id=doc_id)
+        chunks = processor.filter_chunks(processor.process_document(doc), min_length=20)
+        if not chunks:
+            saved_path.unlink(missing_ok=True)
+            return _err("文档切块后无有效内容")
+
+        with _kb_lock:
+            _kb_chunks[:] = [c for c in _kb_chunks if c["doc_id"] != doc_id]
+            for c in chunks:
+                _kb_chunks.append({"doc_id": doc_id, "chunk_index": c.chunk_index,
+                                   "content": c.content})
+            _kb_docs[doc_id] = {
+                "doc_id": doc_id, "name": name, "size": len(raw), "ext": ext,
+                "chunks": len(chunks), "chars": len(text),
+                "path": str(saved_path),
+                "uploaded_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            _kb_reindex_locked()
+            _kb_save_locked()
+        return _ok({"doc": _kb_docs[doc_id], "total_chunks": len(_kb_chunks)})
+    except Exception as e:
+        return _err(str(e))
+
+
+@router.delete("/kb/docs/{doc_id}")
+def kb_delete(doc_id: str) -> JSONResponse:
+    _kb_ensure_loaded()
+    with _kb_lock:
+        doc = _kb_docs.pop(doc_id, None)
+        if doc is None:
+            return _err(f"文档 {doc_id} 不存在")
+        _kb_chunks[:] = [c for c in _kb_chunks if c["doc_id"] != doc_id]
+        try:
+            if doc.get("path"):
+                Path(doc["path"]).unlink(missing_ok=True)
+        except Exception:
+            pass
+        _kb_reindex_locked()
+        _kb_save_locked()
+        return _ok({"deleted": doc_id, "total_chunks": len(_kb_chunks)})
+
+
+@router.get("/kb/search")
+def kb_search_api(query: str, top_k: int = 5) -> JSONResponse:
+    try:
+        if not query.strip():
+            return _err("query 不能为空")
+        return _ok({"hits": _kb_search(query, top_k=top_k)})
+    except Exception as e:
+        return _err(str(e))
+
+
+class KBAskRequest(BaseModel):
+    question: str
+    top_k: int = 4
+
+
+@router.post("/kb/ask")
+def kb_ask(req: KBAskRequest) -> JSONResponse:
+    """知识库问答：检索相关片段，若配置了 LLM 则生成有据回答，否则仅返回检索结果。"""
+    try:
+        if not req.question.strip():
+            return _err("question 不能为空")
+        hits = _kb_search(req.question, top_k=req.top_k)
+        if not hits:
+            return _ok({"hits": [], "answer": None, "llm": False,
+                        "note": "知识库中未检索到相关内容，请先上传文档"})
+        context = "\n\n".join(
+            f"[片段{i+1}｜{h['doc_name']}] {h['content']}" for i, h in enumerate(hits))
+        answer, used_llm, note = None, False, None
+        try:
+            from hello_agents.core.llm import HelloAgentsLLM
+            llm = HelloAgentsLLM()
+            prompt = (
+                "你是一个严谨的知识库问答助手。仅依据下方知识库片段回答用户问题；"
+                "若片段不足以回答，请明确说明。回答末尾标注引用的片段编号。\n\n"
+                f"知识库片段：\n{context}\n\n用户问题：{req.question}"
+            )
+            answer = llm.invoke([{"role": "user", "content": prompt}])
+            used_llm = True
+        except Exception as e:
+            note = f"LLM 不可用（{e}），仅返回检索结果"
+        return _ok({"hits": hits, "answer": answer, "llm": used_llm, "note": note})
     except Exception as e:
         return _err(str(e))

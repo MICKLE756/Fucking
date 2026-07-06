@@ -106,6 +106,7 @@ svg text { fill:var(--text); font-size:11px; }
   <div class="nav-item" data-page="agent"><span class="dot" id="dot-agent"></span>🧭 Agent 运行</div>
   <div class="nav-item" data-page="memory"><span class="dot" id="dot-memory"></span>🧠 记忆 Memory</div>
   <div class="nav-item" data-page="context"><span class="dot" id="dot-context"></span>🧩 上下文 Context</div>
+  <div class="nav-item" data-page="kb"><span class="dot" id="dot-kb"></span>📚 知识库 KB</div>
   <div class="nav-item" data-page="mcp"><span class="dot" id="dot-mcp"></span>🔌 MCP 协议</div>
   <div class="nav-item" data-page="a2a"><span class="dot" id="dot-a2a"></span>🤝 A2A 协议</div>
   <div class="nav-item" data-page="anp"><span class="dot" id="dot-anp"></span>🌐 ANP 协议</div>
@@ -221,6 +222,10 @@ ANP（Agent Network Protocol）关注智能体网络层：服务注册、发现�
           <div style="flex:1"><label>最小相关性</label><input id="ctx-minrel" type="number" step="0.1" value="0.3" /></div>
           <div style="flex:1"><label>MMR λ</label><input id="ctx-mmr" type="number" step="0.1" value="0.7" /></div>
         </div>
+        <div class="row" style="margin-top:6px">
+          <label style="margin:0"><input type="checkbox" id="ctx-usekb" checked /> 检索知识库文档</label>
+          <div style="flex:1"><label>KB Top-K</label><input id="ctx-kbtopk" type="number" value="4" /></div>
+        </div>
         <button id="ctx-build">🚀 构建上下文</button>
         <div class="status" id="ctx-status"></div>
       </div>
@@ -232,9 +237,45 @@ ANP（Agent Network Protocol）关注智能体网络层：服务注册、发现�
     <span id="ctx-bar-label" style="font-size:12px;color:var(--muted)"></span></div>
   </div>
   <div class="pipeline" id="ctx-pipeline"></div>
+  <div class="card" style="margin-top:14px" id="ctx-kb-card" hidden>
+    <h3>📚 知识库命中片段</h3>
+    <div id="ctx-kb-hits"></div>
+  </div>
   <div class="card" style="margin-top:14px" id="ctx-final-card" hidden>
     <h3>🎁 最终上下文（喂给 LLM 的 Prompt）</h3>
     <pre id="ctx-final"></pre>
+  </div>
+</section>
+
+<!-- ============ 知识库 KB ============ -->
+<section class="page" id="page-kb">
+  <h2>📚 知识库 Knowledge Base</h2>
+  <div class="sub">上传 Markdown / PDF / Word 等文档 → 解析切块 → TF-IDF 索引 → 供检索、Context 构建与问答使用（持久化到磁盘）</div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>⬆️ 上传文档</h3>
+      <input id="kb-file" type="file" accept=".md,.markdown,.txt,.pdf,.doc,.docx,.html,.htm,.csv,.json" />
+      <button id="kb-upload" style="margin-top:8px">上传并建立索引</button>
+      <div class="status" id="kb-status"></div>
+      <div id="kb-doclist" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>🔍 检索测试</h3>
+      <div class="row">
+        <input id="kb-q" type="text" style="flex:1" placeholder="输入检索问题" />
+        <button id="kb-search" style="margin:0">检索</button>
+      </div>
+      <div id="kb-results" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>💬 知识库问答（检索 + LLM 生成）</h3>
+    <div class="row">
+      <input id="kb-ask-q" type="text" style="flex:1" placeholder="基于已上传文档提问" />
+      <button id="kb-ask" style="margin:0">提问</button>
+    </div>
+    <div class="status" id="kb-ask-status"></div>
+    <div id="kb-answer" style="margin-top:10px"></div>
   </div>
 </section>
 
@@ -427,7 +468,7 @@ async function loadOverview() {
   try {
     const d = await api("/api/overview");
     $("ov-version").textContent = "v" + d.version;
-    const icons = {memory:"🧠",context:"🧩",mcp:"🔌",a2a:"🤝",anp:"🌐",rl:"🎯",evaluation:"📏",agent:"🧭"};
+    const icons = {memory:"🧠",context:"🧩",kb:"📚",mcp:"🔌",a2a:"🤝",anp:"🌐",rl:"🎯",evaluation:"📏",agent:"🧭"};
     $("ov-cards").innerHTML = Object.entries(d.modules).map(([k,m]) => `
       <div class="card"><h3>${icons[k]||""} ${esc(m.label)}</h3>
         <span class="badge ${m.available?"ok":"no"}">${m.available?"可用":"缺依赖"}</span>
@@ -536,6 +577,8 @@ $("ctx-build").addEventListener("click", async () => {
       max_tokens: parseInt($("ctx-budget").value)||2000,
       min_relevance: parseFloat($("ctx-minrel").value)||0.3,
       mmr_lambda: parseFloat($("ctx-mmr").value)||0.7,
+      use_kb: $("ctx-usekb").checked,
+      kb_top_k: parseInt($("ctx-kbtopk").value)||4,
     });
     $("ctx-status").textContent = "✅ 构建完成";
     const used = d.compress.tokens, avail = d.budget.available_tokens;
@@ -551,8 +594,72 @@ $("ctx-build").addEventListener("click", async () => {
       <div class="stage"><h4>4️⃣ Compress 压缩</h4><div class="pkt">${d.compress.tokens} tokens${d.compress.compressed?"（已压缩）":"（预算内，未压缩）"}</div></div>`;
     $("ctx-final-card").hidden = false;
     $("ctx-final").textContent = d.compress.text;
+    const hits = d.kb_hits || [];
+    $("ctx-kb-card").hidden = hits.length === 0;
+    $("ctx-kb-hits").innerHTML = hits.map(h => `<div class="pkt" style="margin-bottom:6px"><b>📄 ${esc(h.doc_name)} #${h.chunk_index}</b>
+      <span class="badge ok" style="margin-left:6px">相似度 ${h.score}</span>
+      <div class="meta">${esc(h.content.length>160?h.content.slice(0,160)+"…":h.content)}</div></div>`).join("");
   } catch(e) { $("ctx-status").textContent = "❌ " + e.message; }
 });
+
+/* ---------- 知识库 KB ---------- */
+async function refreshKBDocs() {
+  try {
+    const d = await api("/api/kb/docs");
+    if (!d.docs.length) {
+      $("kb-doclist").innerHTML = '<span style="font-size:12px;color:var(--muted)">暂无文档，请先上传</span>';
+      return;
+    }
+    $("kb-doclist").innerHTML = `<table><tr><th>文档</th><th>大小</th><th>切块</th><th>上传时间</th><th></th></tr>` +
+      d.docs.map(doc => `<tr><td>📄 ${esc(doc.name)}</td><td>${(doc.size/1024).toFixed(1)}KB</td>
+        <td>${doc.chunks}</td><td style="font-size:11px">${esc(doc.uploaded_at)}</td>
+        <td><button class="ghost" style="padding:2px 10px;margin:0" onclick="kbDelete('${doc.doc_id}')">删除</button></td></tr>`).join("") +
+      `</table><div style="font-size:12px;color:var(--muted);margin-top:6px">共 ${d.total_chunks} 个索引块 · 存储：${esc(d.storage_dir)}${d.markitdown?"":" · ⚠ 未安装 markitdown，仅支持纯文本格式"}</div>`;
+  } catch(e) { $("kb-doclist").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+}
+async function kbDelete(docId) {
+  try { await api("/api/kb/docs/" + docId, {method:"DELETE"}); refreshKBDocs(); }
+  catch(e) { $("kb-status").textContent = "❌ " + e.message; }
+}
+$("kb-upload").addEventListener("click", async () => {
+  const f = $("kb-file").files[0];
+  if (!f) { $("kb-status").textContent = "⚠ 请先选择文件"; return; }
+  $("kb-status").textContent = "⏳ 上传解析中...";
+  try {
+    const fd = new FormData();
+    fd.append("file", f);
+    const d = await api("/api/kb/upload", {method:"POST", body: fd});
+    $("kb-status").textContent = `✅ ${d.doc.name}：${d.doc.chars} 字符 → ${d.doc.chunks} 个切块已入库`;
+    $("kb-file").value = "";
+    refreshKBDocs();
+  } catch(e) { $("kb-status").textContent = "❌ " + e.message; }
+});
+$("kb-search").addEventListener("click", async () => {
+  try {
+    const d = await api("/api/kb/search?query=" + encodeURIComponent($("kb-q").value) + "&top_k=5");
+    $("kb-results").innerHTML = d.hits.length === 0 ?
+      '<span style="font-size:12px;color:var(--muted)">未检索到相关内容</span>' :
+      d.hits.map(h => `<div class="pkt" style="margin-bottom:6px"><b>📄 ${esc(h.doc_name)} #${h.chunk_index}</b>
+        <span class="badge ok" style="margin-left:6px">相似度 ${h.score}</span>
+        <div class="meta" style="white-space:pre-wrap">${esc(h.content.length>300?h.content.slice(0,300)+"…":h.content)}</div></div>`).join("");
+  } catch(e) { $("kb-results").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+});
+$("kb-ask").addEventListener("click", async () => {
+  $("kb-ask-status").textContent = "⏳ 检索 + 生成中...";
+  $("kb-answer").innerHTML = "";
+  try {
+    const d = await post("/api/kb/ask", {question: $("kb-ask-q").value, top_k: 4});
+    $("kb-ask-status").textContent = d.llm ? "✅ LLM 已基于知识库回答" : `⚠ ${d.note || "仅返回检索结果"}`;
+    let html = "";
+    if (d.answer) html += `<div class="pkt" style="margin-bottom:10px;white-space:pre-wrap">${esc(d.answer)}</div>`;
+    if (d.hits.length) html += `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">引用片段：</div>` +
+      d.hits.map((h,i) => `<div class="pkt" style="margin-bottom:6px"><b>[片段${i+1}] 📄 ${esc(h.doc_name)} #${h.chunk_index}</b>
+        <span class="badge ok" style="margin-left:6px">相似度 ${h.score}</span>
+        <div class="meta">${esc(h.content.length>200?h.content.slice(0,200)+"…":h.content)}</div></div>`).join("");
+    $("kb-answer").innerHTML = html;
+  } catch(e) { $("kb-ask-status").textContent = "❌ " + e.message; }
+});
+refreshKBDocs();
 
 /* ---------- MCP ---------- */
 $("mcp-refresh").addEventListener("click", async () => {
