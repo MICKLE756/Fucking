@@ -24,12 +24,14 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 
 from hello_agents.web.tracer import TracedReActAgent, TraceEvent, demo_trace
+from hello_agents.web.dashboard_api import router as dashboard_router
 
 load_dotenv()
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="HelloAgents 流程可视化", version="1.0.0")
+app = FastAPI(title="HelloAgents 终极可视化控制台", version="2.0.0")
+app.include_router(dashboard_router)
 
 
 def _sse(event: TraceEvent) -> str:
