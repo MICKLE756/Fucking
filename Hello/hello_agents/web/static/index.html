@@ -1,1280 +1,804 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HelloAgents · 终极可视化控制台</title>
-  <style>
-    :root {
-      --bg: #07111f;
-      --bg2: #0d1728;
-      --panel: #101c31;
-      --panel2: #16243b;
-      --panel3: #1b2d49;
-      --line: #253652;
-      --text: #e7eefb;
-      --muted: #91a4c4;
-      --accent: #7c8dff;
-      --accent2: #21c8f6;
-      --good: #34d399;
-      --warn: #fbbf24;
-      --bad: #fb7185;
-      --demo: #8b95b8;
-      --live: #22c55e;
-      --shadow: 0 16px 40px rgba(0, 0, 0, .28);
-      --radius: 18px;
-      --sidebar-w: 278px;
-      --header-h: 72px;
-      --transition: 180ms ease;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-      background: radial-gradient(1200px 900px at 20% 0%, #102242 0%, var(--bg) 55%) fixed;
-      color: var(--text);
-      overflow: hidden;
-    }
-    a { color: inherit; }
-    .app { display: flex; height: 100vh; width: 100vw; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HelloAgents · 终极可视化控制台</title>
+<style>
+:root {
+  --bg: #0b1120; --panel: #151f33; --panel2: #1d2a44; --card: #182540;
+  --text: #e2e8f0; --muted: #8fa3bf; --border: #2b3a55;
+  --thought: #a78bfa; --action: #38bdf8; --observation: #34d399;
+  --final: #fbbf24; --error: #f87171; --accent: #6366f1; --accent2: #22d3ee;
+  --ok: #34d399; --warn: #fbbf24;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--text); min-height:100vh; display:flex; }
+::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 
-    .sidebar {
-      width: var(--sidebar-w);
-      background: linear-gradient(180deg, rgba(13, 23, 40, .96), rgba(8, 14, 24, .98));
-      border-right: 1px solid rgba(125, 143, 184, .12);
-      padding: 18px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      position: relative;
-      z-index: 3;
-      box-shadow: 10px 0 40px rgba(0, 0, 0, .18);
-    }
-    .brand {
-      padding: 14px 14px 12px;
-      border-radius: 18px;
-      background: linear-gradient(145deg, rgba(124,141,255,.14), rgba(33,200,246,.08));
-      border: 1px solid rgba(124,141,255,.18);
-    }
-    .brand .title {
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: .3px;
-      line-height: 1.35;
-    }
-    .brand .sub {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .nav-item {
-      border: 1px solid transparent;
-      background: rgba(255,255,255,.02);
-      color: var(--text);
-      text-align: left;
-      padding: 12px 14px;
-      border-radius: 15px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      transition: transform var(--transition), background var(--transition), border-color var(--transition);
-      min-height: 56px;
-    }
-    .nav-item:hover { transform: translateY(-1px); background: rgba(124,141,255,.10); border-color: rgba(124,141,255,.22); }
-    .nav-item.active { background: linear-gradient(135deg, rgba(124,141,255,.20), rgba(33,200,246,.10)); border-color: rgba(124,141,255,.26); }
-    .nav-emoji {
-      width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center;
-      background: rgba(255,255,255,.06); font-size: 15px; flex: 0 0 auto;
-    }
-    .nav-meta { flex: 1; min-width: 0; }
-    .nav-title { font-size: 14px; font-weight: 700; }
-    .nav-desc { margin-top: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .dot {
-      width: 10px; height: 10px; border-radius: 999px; flex: 0 0 auto;
-      box-shadow: 0 0 0 4px rgba(255,255,255,.04);
-    }
-    .dot.live { background: var(--live); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
-    .dot.demo { background: var(--demo); box-shadow: 0 0 0 4px rgba(139,149,184,.12); }
-    .sidebar-footer {
-      margin-top: auto;
-      padding: 14px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.05);
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.65;
-    }
+/* 侧边栏 */
+.sidebar { width:220px; min-height:100vh; background:var(--panel); border-right:1px solid var(--border);
+  padding:18px 12px; position:sticky; top:0; flex-shrink:0; }
+.sidebar h1 { font-size:16px; margin:4px 8px 18px; }
+.sidebar h1 small { display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:4px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
+  cursor:pointer; font-size:14px; color:var(--muted); margin-bottom:4px; user-select:none; }
+.nav-item:hover { background:var(--panel2); color:var(--text); }
+.nav-item.active { background:linear-gradient(90deg,var(--accent),#4f46e5); color:#fff; }
+.nav-item .dot { width:8px; height:8px; border-radius:50%; background:var(--border); flex-shrink:0; }
+.nav-item .dot.on { background:var(--ok); } .nav-item .dot.off { background:var(--error); }
 
-    .main {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .topbar {
-      height: var(--header-h);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 24px 0 28px;
-      border-bottom: 1px solid rgba(125, 143, 184, .12);
-      background: rgba(7, 17, 31, .72);
-      backdrop-filter: blur(14px);
-      box-shadow: 0 10px 24px rgba(0,0,0,.08);
-      z-index: 2;
-    }
-    .topbar h1 {
-      font-size: 19px;
-      margin: 0;
-      font-weight: 900;
-      letter-spacing: .2px;
-    }
-    .topbar .meta {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 13px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 11px;
-      border-radius: 999px;
-      font-size: 12px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.03);
-    }
-    .pill.live { color: #b6ffd0; border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.10); }
-    .pill.demo { color: #dbe2f5; border-color: rgba(139,149,184,.20); background: rgba(139,149,184,.08); }
+/* 主区 */
+.main { flex:1; padding:24px 30px; max-width:1200px; }
+.page { display:none; } .page.active { display:block; }
+h2 { font-size:20px; margin:0 0 6px; } .sub { color:var(--muted); font-size:13px; margin-bottom:18px; }
+.grid { display:grid; gap:14px; } .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+.card h3 { margin:0 0 10px; font-size:14px; color:var(--accent2); }
+.card .big { font-size:26px; font-weight:700; }
+label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+input[type=text], input[type=number], textarea, select {
+  width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg); color:var(--text); font-size:13px; font-family:inherit; }
+textarea { resize:vertical; min-height:60px; }
+button { padding:9px 18px; border-radius:8px; border:none; cursor:pointer; background:var(--accent);
+  color:#fff; font-size:13px; font-weight:600; margin-top:10px; }
+button.ghost { background:var(--panel2); color:var(--text); border:1px solid var(--border); }
+button.danger { background:#7f1d1d; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+.row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+pre { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px;
+  font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-word; max-height:340px; }
+.badge { display:inline-block; padding:2px 10px; border-radius:99px; font-size:11px; font-weight:700; }
+.badge.ok { background:rgba(52,211,153,.15); color:var(--ok); }
+.badge.no { background:rgba(248,113,113,.15); color:var(--error); }
+.badge.warn { background:rgba(251,191,36,.15); color:var(--warn); }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th,td { padding:7px 8px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+th { color:var(--muted); font-weight:600; }
+.bar-wrap { background:var(--bg); border-radius:6px; height:10px; overflow:hidden; border:1px solid var(--border); }
+.bar { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:6px; transition:width .4s; }
+.chip { display:inline-block; background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+  padding:6px 10px; font-size:12px; margin:3px 4px 3px 0; }
+.status { font-size:12px; color:var(--muted); min-height:16px; margin-top:8px; }
+canvas { background:var(--bg); border:1px solid var(--border); border-radius:10px; width:100%; }
 
-    .content {
-      flex: 1;
-      min-height: 0;
-      overflow: auto;
-      padding: 22px;
-      scroll-behavior: smooth;
-    }
-    .panel {
-      display: none;
-      min-height: calc(100vh - var(--header-h) - 44px);
-    }
-    .panel.active { display: block; }
-    .panel-card {
-      background: linear-gradient(180deg, rgba(16, 28, 49, .96), rgba(13, 23, 40, .96));
-      border: 1px solid rgba(125, 143, 184, .12);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-    .panel-head {
-      padding: 20px 22px 16px;
-      border-bottom: 1px solid rgba(125, 143, 184, .10);
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-    }
-    .panel-title {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .panel-title h2 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 900;
-    }
-    .panel-title p {
-      margin: 5px 0 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.65;
-    }
-    .panel-body { padding: 18px; }
-    .section {
-      background: rgba(255,255,255,.02);
-      border: 1px solid rgba(255,255,255,.06);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 12px;
-      color: #f2f6ff;
-      font-size: 14px;
-      font-weight: 800;
-      letter-spacing: .2px;
-    }
-    .muted { color: var(--muted); }
-    .grid { display: grid; gap: 14px; }
-    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .grid-auto { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-    .card {
-      background: linear-gradient(180deg, rgba(22, 36, 59, .96), rgba(16, 28, 49, .95));
-      border: 1px solid rgba(125, 143, 184, .12);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
-      min-width: 0;
-    }
-    .card h3, .card h4 { margin: 0; }
-    .card h3 { font-size: 15px; }
-    .card h4 { font-size: 14px; }
-    .card .desc { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
-    .metric {
-      margin-top: 10px;
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      font-size: 12px; color: var(--muted);
-    }
-    .metric strong { color: var(--text); font-size: 14px; }
-    .tag {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.03);
-      color: var(--muted);
-      white-space: nowrap;
-    }
-    .tag.live { color: #c9ffdd; border-color: rgba(34,197,94,.22); background: rgba(34,197,94,.08); }
-    .tag.demo { color: #d7dff2; border-color: rgba(139,149,184,.18); background: rgba(139,149,184,.07); }
-    .tag.mixed { color: #d7d1ff; border-color: rgba(124,141,255,.22); background: rgba(124,141,255,.08); }
-    .badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
-      background: rgba(124,141,255,.12); color: #dce1ff; border: 1px solid rgba(124,141,255,.22);
-    }
-    .badge.good { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.24); color: #cbf9d9; }
-    .badge.warn { background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.24); color: #ffe8a4; }
-    .badge.bad { background: rgba(251,113,133,.12); border-color: rgba(251,113,133,.24); color: #ffc2ce; }
-    .badge.demo { background: rgba(139,149,184,.10); border-color: rgba(139,149,184,.20); color: #d7dff2; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    .spacer { flex: 1; }
-    .mono, pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    pre {
-      margin: 0; white-space: pre-wrap; word-break: break-word;
-      background: rgba(8, 15, 27, .92);
-      border: 1px solid rgba(125, 143, 184, .12);
-      border-radius: 14px;
-      padding: 14px;
-      color: #e7eefb;
-      line-height: 1.55;
-      font-size: 12px;
-      overflow: auto;
-    }
-    .json .key { color: #7dd3fc; }
-    .json .string { color: #a7f3d0; }
-    .json .number { color: #fdba74; }
-    .json .boolean { color: #c4b5fd; }
-    .json .null { color: #fda4af; }
-    .kv { width: 100%; border-collapse: collapse; }
-    .kv th, .kv td {
-      padding: 8px 10px;
-      border-bottom: 1px solid rgba(255,255,255,.06);
-      vertical-align: top;
-      font-size: 12px;
-      text-align: left;
-    }
-    .kv th { color: var(--muted); width: 36%; font-weight: 700; }
-    .kv td { color: var(--text); }
-    .bar {
-      width: 100%; height: 12px; background: rgba(255,255,255,.06); border-radius: 999px; overflow: hidden;
-      border: 1px solid rgba(255,255,255,.05);
-    }
-    .bar > span {
-      display: block; height: 100%; border-radius: inherit;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-    }
-    .bar.good > span { background: linear-gradient(90deg, #22c55e, #86efac); }
-    .bar.warn > span { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
-    .bar.bad > span { background: linear-gradient(90deg, #fb7185, #fda4af); }
-    .tiny { font-size: 11px; color: var(--muted); }
-    .panel-note {
-      margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.65;
-      padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.02); border: 1px dashed rgba(125,143,184,.18);
-    }
+/* Agent 时间线（沿用原样式） */
+.timeline { position:relative; margin-top:14px; padding-left:34px; }
+.timeline::before { content:""; position:absolute; left:13px; top:6px; bottom:6px; width:2px; background:var(--border); }
+.event { position:relative; margin-bottom:14px; background:var(--panel); border:1px solid var(--border);
+  border-radius:12px; padding:12px 14px; animation:fade .3s ease; border-left-width:4px; }
+@keyframes fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.event::before { content:""; position:absolute; left:-25px; top:16px; width:12px; height:12px;
+  border-radius:50%; background:var(--accent); border:2px solid var(--bg); }
+.event .etype { font-size:12px; font-weight:700; text-transform:uppercase; }
+.event .estep { font-size:11px; color:var(--muted); margin-left:8px; }
+.event .econtent { margin-top:6px; font-size:13px; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+.event .tool { display:inline-block; margin-top:6px; font-family:ui-monospace,monospace; font-size:12px;
+  background:var(--panel2); padding:4px 8px; border-radius:6px; color:var(--action); }
+.t-thought{border-left-color:var(--thought)} .t-thought .etype{color:var(--thought)} .t-thought::before{background:var(--thought)}
+.t-action{border-left-color:var(--action)} .t-action .etype{color:var(--action)} .t-action::before{background:var(--action)}
+.t-observation{border-left-color:var(--observation)} .t-observation .etype{color:var(--observation)} .t-observation::before{background:var(--observation)}
+.t-final{border-left-color:var(--final)} .t-final .etype{color:var(--final)} .t-final::before{background:var(--final)}
+.t-error{border-left-color:var(--error)} .t-error .etype{color:var(--error)} .t-error::before{background:var(--error)}
+.t-start{border-left-color:var(--muted)} .t-start .etype{color:var(--muted)} .t-start::before{background:var(--muted)}
 
-    /* Overview */
-    .overview-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-    .overview-card { cursor: pointer; transition: transform var(--transition), border-color var(--transition), background var(--transition); }
-    .overview-card:hover { transform: translateY(-2px); border-color: rgba(124,141,255,.30); background: rgba(124,141,255,.08); }
-    .overview-card .metric strong { font-size: 18px; }
+/* GSSC 流水线 */
+.pipeline { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px; }
+.stage { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; min-height:120px; }
+.stage h4 { margin:0 0 8px; font-size:13px; }
+.stage .pkt { border:1px solid var(--border); border-radius:8px; padding:7px 9px; margin-bottom:6px;
+  font-size:11px; background:var(--panel2); }
+.stage .pkt.dropped { opacity:.4; text-decoration:line-through; }
+.pkt .meta { color:var(--muted); font-size:10px; margin-top:3px; }
+.arrow { text-align:center; color:var(--muted); font-size:18px; align-self:center; }
 
-    /* ReAct */
-    .react-controls {
-      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
-      padding: 12px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(125,143,184,.12);
-      margin-bottom: 14px;
-    }
-    .react-controls input[type=text], .react-controls select {
-      border: 1px solid rgba(125,143,184,.18); background: var(--bg2); color: var(--text);
-      border-radius: 12px; padding: 11px 12px; font-size: 14px;
-    }
-    .react-controls input[type=text] { flex: 1; min-width: 260px; }
-    .react-controls button {
-      border: none; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white;
-      padding: 11px 18px; border-radius: 12px; font-weight: 800; cursor: pointer;
-    }
-    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 4px 0 10px; }
-    .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
-    .lg-start::before { background: #94a3b8; }
-    .lg-thought::before { background: #a78bfa; }
-    .lg-action::before { background: #38bdf8; }
-    .lg-observation::before { background: #34d399; }
-    .lg-final::before { background: #fbbf24; }
-    .timeline { position: relative; padding-left: 34px; }
-    .timeline::before { content: ""; position: absolute; left: 13px; top: 8px; bottom: 8px; width: 2px; background: rgba(125,143,184,.20); }
-    .event {
-      position: relative; margin-bottom: 14px; border-radius: 16px; padding: 14px 15px 14px 16px;
-      border: 1px solid rgba(125,143,184,.12); background: rgba(255,255,255,.03); border-left-width: 4px;
-    }
-    .event::before {
-      content: ""; position: absolute; left: -25px; top: 18px; width: 12px; height: 12px; border-radius: 999px;
-      background: var(--accent); border: 2px solid var(--bg);
-    }
-    .t-start { border-left-color: #94a3b8; }
-    .t-thought { border-left-color: #a78bfa; }
-    .t-action { border-left-color: #38bdf8; }
-    .t-observation { border-left-color: #34d399; }
-    .t-final { border-left-color: #fbbf24; }
-    .t-error { border-left-color: #fb7185; }
-    .t-start::before { background: #94a3b8; }
-    .t-thought::before { background: #a78bfa; }
-    .t-action::before { background: #38bdf8; }
-    .t-observation::before { background: #34d399; }
-    .t-final::before { background: #fbbf24; }
-    .t-error::before { background: #fb7185; }
-    .etype { font-size: 12px; font-weight: 900; letter-spacing: .5px; text-transform: uppercase; }
-    .estep { font-size: 11px; color: var(--muted); margin-left: 8px; }
-    .econtent { margin-top: 8px; white-space: pre-wrap; line-height: 1.65; word-break: break-word; font-size: 14px; }
-    .toolchip {
-      display: inline-block; margin-top: 9px; padding: 5px 9px; border-radius: 10px;
-      background: rgba(255,255,255,.05); border: 1px solid rgba(125,143,184,.14); color: #7dd3fc; font-size: 12px;
-    }
-
-    /* Memory */
-    .memory-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-    .memory-column { min-width: 0; }
-    .memory-column h4 { margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
-    .memory-item {
-      border: 1px solid rgba(125,143,184,.12); background: rgba(255,255,255,.03);
-      border-radius: 16px; padding: 14px; margin-bottom: 10px;
-    }
-    .memory-item .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .memory-item .content { margin-top: 9px; font-size: 13px; line-height: 1.7; color: #edf2ff; }
-    .memory-item .meta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .importance-wrap { margin-top: 10px; }
-    .importance-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-
-    /* Context */
-    .stage-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
-    .stage { position: relative; }
-    .stage .arrow {
-      position: absolute; right: -19px; top: 50%; transform: translateY(-50%); color: rgba(145,164,196,.6);
-      font-size: 20px; z-index: 1;
-    }
-    .stage:last-child .arrow { display: none; }
-    .stage .label { font-weight: 900; margin-bottom: 6px; }
-    .stage .sub { color: var(--muted); font-size: 11px; line-height: 1.6; }
-    .budget { margin-top: 12px; }
-    .history-summary, .truncate-box { padding: 14px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(125,143,184,.12); }
-    .history-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-    .history-summary .mini { font-size: 12px; color: var(--muted); }
-    .truncate-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-
-    /* A2A / ANP / RL / Eval common */
-    .table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; }
-    .table th, .table td { padding: 9px 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 12px; vertical-align: top; }
-    .table th { color: var(--muted); font-weight: 800; }
-    .agent-cards, .config-grid, .metrics-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .flow-list { display: grid; gap: 10px; }
-    .flow-step { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(125,143,184,.12); }
-    .flow-step .arrow { color: #7dd3fc; font-size: 18px; }
-    .flow-step .text { flex: 1; min-width: 0; }
-
-    /* ANP graph */
-    .graph-wrap { overflow: hidden; border-radius: 16px; border: 1px solid rgba(125,143,184,.12); background: radial-gradient(circle at 30% 20%, rgba(124,141,255,.08), rgba(16,28,49,.18)); }
-    .graph-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-    .graph-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
-    .legend-node::before { background: #7dd3fc; }
-    .legend-edge::before { background: #64748b; }
-    .legend-route::before { background: #fbbf24; }
-
-    /* RL chart */
-    .chart-box { border: 1px solid rgba(125,143,184,.12); background: rgba(255,255,255,.03); border-radius: 16px; padding: 10px; overflow: hidden; }
-    .chart { width: 100%; height: 250px; display: block; }
-
-    .footer-line { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
-
-    @media (max-width: 1280px) {
-      .memory-columns, .stage-flow, .truncate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .sidebar { width: 250px; }
-    }
-    @media (max-width: 980px) {
-      body { overflow: auto; }
-      .app { flex-direction: column; height: auto; min-height: 100vh; }
-      .sidebar { width: 100%; position: sticky; top: 0; }
-      .main { min-height: 0; }
-      .content { padding: 14px; }
-      .grid-2, .grid-3, .grid-4, .memory-columns, .stage-flow, .truncate-grid { grid-template-columns: 1fr; }
-      .panel { min-height: auto; }
-    }
-  </style>
+/* ANP 图 */
+svg text { fill:var(--text); font-size:11px; }
+.anp-log div { font-size:12px; padding:6px 8px; border-bottom:1px solid var(--border); }
+</style>
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="title">🚀 HelloAgents · 终极可视化控制台</div>
-        <div class="sub">单页多模块 Dashboard｜中文界面｜live / demo 双模式展示</div>
-      </div>
-      <nav class="nav" id="nav"></nav>
-      <div class="sidebar-footer">
-        <div><strong>使用说明</strong></div>
-        <div>左侧切换 9 个面板；首次打开时按需请求对应 API。</div>
-        <div>ReAct 面板保留原有 SSE 流式 trace，其他面板均为 JSON 驱动。</div>
-      </div>
-    </aside>
+<nav class="sidebar">
+  <h1>🤖 HelloAgents<small>终极可视化控制台 · Ultimate Console</small></h1>
+  <div class="nav-item active" data-page="overview"><span class="dot" id="dot-overview"></span>📊 总览</div>
+  <div class="nav-item" data-page="agent"><span class="dot" id="dot-agent"></span>🧭 Agent 运行</div>
+  <div class="nav-item" data-page="memory"><span class="dot" id="dot-memory"></span>🧠 记忆 Memory</div>
+  <div class="nav-item" data-page="context"><span class="dot" id="dot-context"></span>🧩 上下文 Context</div>
+  <div class="nav-item" data-page="mcp"><span class="dot" id="dot-mcp"></span>🔌 MCP 协议</div>
+  <div class="nav-item" data-page="a2a"><span class="dot" id="dot-a2a"></span>🤝 A2A 协议</div>
+  <div class="nav-item" data-page="anp"><span class="dot" id="dot-anp"></span>🌐 ANP 协议</div>
+  <div class="nav-item" data-page="rl"><span class="dot" id="dot-rl"></span>🎯 强化学习 RL</div>
+  <div class="nav-item" data-page="eval"><span class="dot" id="dot-evaluation"></span>📏 评估 Evaluation</div>
+</nav>
 
-    <main class="main">
-      <header class="topbar">
-        <div>
-          <h1>🚀 HelloAgents · 终极可视化控制台</h1>
-          <div class="muted" style="font-size:12px;margin-top:4px;">memory · context · protocols · rl · evaluation · ReAct trace</div>
-        </div>
-        <div class="meta">
-          <span class="pill live" id="version-pill">live</span>
-          <span class="pill" id="sub-pill">加载中…</span>
-        </div>
-      </header>
+<main class="main">
 
-      <div class="content">
-        <section class="panel active" id="panel-overview">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🧭</div>
-                <div>
-                  <h2>概览 Overview</h2>
-                  <p>九大子系统的当前可用性、关键指标与入口总览。</p>
-                </div>
-              </div>
-              <div class="row">
-                <span class="tag live" id="overview-source">live</span>
-                <span class="badge" id="overview-version">v0.0.0</span>
-              </div>
-            </div>
-            <div class="panel-body">
-              <div id="overview-grid" class="overview-grid"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-react">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🧠</div>
-                <div>
-                  <h2>ReAct 流程</h2>
-                  <p>保持原有 SSE trace：思考 → 行动 → 观察 → 最终答案。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag live">live</span></div>
-            </div>
-            <div class="panel-body">
-              <div class="react-controls">
-                <input id="react-q" type="text" value="请计算 15 * 23 + 45 等于多少？" placeholder="输入一个问题..." />
-                <select id="react-mode">
-                  <option value="demo">演示模式（无需 LLM）</option>
-                  <option value="live">真实模式（读取 .env 的 LLM）</option>
-                </select>
-                <button id="react-run">运行</button>
-              </div>
-              <div class="legend">
-                <span class="lg-start">Start</span>
-                <span class="lg-thought">Thought</span>
-                <span class="lg-action">Action</span>
-                <span class="lg-observation">Observation</span>
-                <span class="lg-final">Final</span>
-              </div>
-              <div id="react-status" class="muted" style="margin: 8px 2px 14px; min-height: 20px;"></div>
-              <div id="react-timeline" class="timeline"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-memory">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🧠</div>
-                <div>
-                  <h2>记忆 Memory</h2>
-                  <p>工作 / 情景 / 语义 / 感知四类记忆的高保真样本与统计。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag demo">demo</span></div>
-            </div>
-            <div class="panel-body" id="memory-root"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-context">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🧩</div>
-                <div>
-                  <h2>上下文 Context</h2>
-                  <p>GSSC（Gather → Select → Structure → Compress）流水线、历史压缩与工具截断示意。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag live">live</span></div>
-            </div>
-            <div class="panel-body" id="context-root"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-mcp">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🔌</div>
-                <div>
-                  <h2>MCP</h2>
-                  <p>上下文对象的 messages / tools / resources / metadata 四段结构。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag live">live</span></div>
-            </div>
-            <div class="panel-body" id="mcp-root"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-a2a">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🤝</div>
-                <div>
-                  <h2>A2A</h2>
-                  <p>Agent 注册、网络组织与任务委派示意。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag live">live</span></div>
-            </div>
-            <div class="panel-body" id="a2a-root"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-anp">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">🌐</div>
-                <div>
-                  <h2>ANP</h2>
-                  <p>服务发现、拓扑网络、消息路由与广播。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag live">live</span></div>
-            </div>
-            <div class="panel-body" id="anp-root"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-rl">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">⚙️</div>
-                <div>
-                  <h2>强化学习 RL</h2>
-                  <p>SFT / GRPO / PPO 的训练配置、奖励样例与曲线演示。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag demo">demo</span></div>
-            </div>
-            <div class="panel-body" id="rl-root"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-eval">
-          <div class="panel-card">
-            <div class="panel-head">
-              <div class="panel-title">
-                <div style="font-size:28px;">📊</div>
-                <div>
-                  <h2>评估 Evaluation</h2>
-                  <p>BFCL 真实指标 + GAIA / Win Rate / LLM Judge 的混合展示。</p>
-                </div>
-              </div>
-              <div class="row"><span class="tag mixed">mixed</span></div>
-            </div>
-            <div class="panel-body" id="eval-root"></div>
-          </div>
-        </section>
-      </div>
-    </main>
+<!-- ============ 总览 ============ -->
+<section class="page active" id="page-overview">
+  <h2>📊 框架总览</h2>
+  <div class="sub">HelloAgents 全模块健康状态与能力一览（版本 <span id="ov-version">-</span>）</div>
+  <div class="grid g3" id="ov-cards"></div>
+  <div class="card" style="margin-top:16px">
+    <h3>架构地图</h3>
+    <pre style="max-height:none">┌────────────────────────  HelloAgents  ────────────────────────┐
+│  Agents (ReAct / Reflection / PlanSolve / FunctionCall ...)    │
+│    │                                                           │
+│    ├── 🧠 Memory     工作 / 情景 / 语义 / 感知记忆 + RAG        │
+│    ├── 🧩 Context    GSSC 流水线 (Gather→Select→Structure→Compress)
+│    ├── 🛠 Tools      计算器 / 搜索 / 终端 / 笔记 / RAG ...      │
+│    ├── 🔌 Protocols  MCP (工具接入) · A2A (智能体互操作) · ANP (网络发现)
+│    ├── 🎯 RL         SFT / GRPO / PPO 训练 + 奖励函数           │
+│    └── 📏 Evaluation BFCL · GAIA · LLM Judge · Win Rate        │
+└────────────────────────────────────────────────────────────────┘</pre>
   </div>
+</section>
 
-  <script>
-    const PANELS = [
-      { key: 'overview', title: '概览 Overview', icon: '🧭', desc: '九大模块总览', endpoint: '/api/overview', source: 'live' },
-      { key: 'react', title: 'ReAct 流程', icon: '🧠', desc: 'SSE 推理链路', endpoint: '/api/run', source: 'live' },
-      { key: 'memory', title: '记忆 Memory', icon: '🧠', desc: '四类记忆示意', endpoint: '/api/memory', source: 'demo' },
-      { key: 'context', title: '上下文 Context', icon: '🧩', desc: 'GSSC 管线', endpoint: '/api/context', source: 'live' },
-      { key: 'mcp', title: 'MCP', icon: '🔌', desc: '上下文协议', endpoint: '/api/mcp', source: 'live' },
-      { key: 'a2a', title: 'A2A', icon: '🤝', desc: 'Agent 协作', endpoint: '/api/a2a', source: 'live' },
-      { key: 'anp', title: 'ANP', icon: '🌐', desc: '服务网络', endpoint: '/api/anp', source: 'live' },
-      { key: 'rl', title: '强化学习 RL', icon: '⚙️', desc: '奖励与训练', endpoint: '/api/rl', source: 'demo' },
-      { key: 'eval', title: '评估 Evaluation', icon: '📊', desc: 'BFCL / GAIA / WinRate', endpoint: '/api/eval', source: 'mixed' },
-    ];
+<!-- ============ Agent ============ -->
+<section class="page" id="page-agent">
+  <h2>🧭 ReAct Agent 运行追踪</h2>
+  <div class="sub">思考 Thought → 行动 Action → 观察 Observation → 最终答案 Final</div>
+  <div class="card">
+    <div class="row">
+      <input id="ag-q" type="text" style="flex:1;min-width:240px" value="请计算 15 * 23 + 45 等于多少？" />
+      <select id="ag-mode" style="width:auto">
+        <option value="demo">演示模式（无需 LLM）</option>
+        <option value="live">真实模式（.env LLM）</option>
+      </select>
+      <button id="ag-run">运行</button>
+    </div>
+    <div class="status" id="ag-status"></div>
+  </div>
+  <div class="timeline" id="ag-timeline"></div>
+</section>
 
-    const state = {
-      loaded: new Set(),
-      data: {},
-      react: { es: null }
-    };
+<!-- ============ Memory ============ -->
+<section class="page" id="page-memory">
+  <h2>🧠 记忆系统 Memory</h2>
+  <div class="sub">MemoryManager：添加 / 检索 / 巩固 / 遗忘，多类型记忆统一管理 <span id="mem-degraded" class="badge warn" style="display:none"></span></div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>✍️ 写入记忆</h3>
+      <label>记忆内容</label>
+      <textarea id="mem-content">用户正在开发一个多智能体系统，偏好中文界面与深色主题。</textarea>
+      <div class="row">
+        <div style="flex:1"><label>记忆类型</label>
+          <select id="mem-type">
+            <option value="working">working 工作记忆</option>
+            <option value="episodic">episodic 情景记忆</option>
+            <option value="semantic">semantic 语义记忆</option>
+          </select></div>
+        <div style="flex:1"><label>重要性 (留空自动评估)</label>
+          <input id="mem-importance" type="number" step="0.1" min="0" max="1" placeholder="auto" /></div>
+        <div><label>自动分类</label><select id="mem-auto"><option value="1">开</option><option value="0">关</option></select></div>
+      </div>
+      <button id="mem-add">添加记忆</button>
+      <div class="status" id="mem-add-status"></div>
+      <h3 style="margin-top:16px">🔍 检索记忆</h3>
+      <div class="row">
+        <input id="mem-q" type="text" style="flex:1" value="多智能体" placeholder="检索关键词" />
+        <button id="mem-search">检索</button>
+      </div>
+      <div id="mem-results" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>📈 记忆统计</h3>
+      <div id="mem-stats"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="ghost" id="mem-consolidate">🔄 巩固 consolidate</button>
+        <button class="ghost" id="mem-forget">🍂 遗忘 forget(阈值0.3)</button>
+        <button class="danger" id="mem-clear">🗑 清空</button>
+      </div>
+      <div class="status" id="mem-op-status"></div>
+    </div>
+  </div>
+</section>
 
-    const nav = document.getElementById('nav');
-    const subPill = document.getElementById('sub-pill');
-    const versionPill = document.getElementById('version-pill');
-    const overviewVersion = document.getElementById('overview-version');
-    const overviewSource = document.getElementById('overview-source');
-
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>'"]/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-      }[c]));
-    }
-
-    function jsonHighlight(value) {
-      const json = JSON.stringify(value, null, 2);
-      return escapeHtml(json)
-        .replace(/(&quot;.*?&quot;)(?=:\s)/g, '<span class="key">$1</span>')
-        .replace(/: (&quot;.*?&quot;)/g, ': <span class="string">$1</span>')
-        .replace(/: (-?\d+(?:\.\d+)?(?:e[+\-]?\d+)?)/gi, ': <span class="number">$1</span>')
-        .replace(/: (true|false)/g, ': <span class="boolean">$1</span>')
-        .replace(/: (null)/g, ': <span class="null">$1</span>');
-    }
-
-    function kvTable(obj) {
-      const rows = Object.entries(obj).map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${typeof v === 'object' && v !== null ? escapeHtml(JSON.stringify(v)) : escapeHtml(v)}</td></tr>`).join('');
-      return `<table class="kv">${rows}</table>`;
-    }
-
-    function badge(text, cls = '') {
-      return `<span class="badge ${cls}">${escapeHtml(text)}</span>`;
-    }
-
-    function tag(text, cls = '') {
-      return `<span class="tag ${cls}">${escapeHtml(text)}</span>`;
-    }
-
-    function setActivePanel(key) {
-      document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.key === key));
-      document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${key}`));
-      const panel = document.getElementById(`panel-${key}`);
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      subPill.textContent = PANELS.find(p => p.key === key)?.title || key;
-      if (!state.loaded.has(key)) loadPanel(key);
-    }
-
-    function loadPanel(key) {
-      const panel = PANELS.find(p => p.key === key);
-      if (!panel) return;
-      state.loaded.add(key);
-      if (key === 'react') return;
-      const root = document.getElementById(`${key}-root`);
-      if (!root) return;
-      root.innerHTML = '<div class="card"><div class="muted">加载中…</div></div>';
-      fetch(panel.endpoint)
-        .then(r => r.json())
-        .then(data => {
-          state.data[key] = data;
-          renderPanel(key, data);
-          if (key === 'overview') {
-            versionPill.textContent = `v${data.version || 'unknown'}`;
-            overviewVersion.textContent = `v${data.version || 'unknown'}`;
-            overviewSource.textContent = data.source || 'live';
-          }
-        })
-        .catch(err => {
-          root.innerHTML = `<div class="card"><div class="badge bad">加载失败</div><div class="panel-note">${escapeHtml(err.message || err)}</div></div>`;
-        });
-    }
-
-    function renderPanel(key, data) {
-      const root = document.getElementById(`${key}-root`);
-      if (!root) return;
-      if (key === 'overview') return renderOverview(root, data);
-      if (key === 'memory') return renderMemory(root, data);
-      if (key === 'context') return renderContext(root, data);
-      if (key === 'mcp') return renderMCP(root, data);
-      if (key === 'a2a') return renderA2A(root, data);
-      if (key === 'anp') return renderANP(root, data);
-      if (key === 'rl') return renderRL(root, data);
-      if (key === 'eval') return renderEval(root, data);
-    }
-
-    function renderOverview(root, data) {
-      const cards = data.modules.map(mod => {
-        return `
-          <article class="card overview-card" data-jump="${escapeHtml(mod.key)}">
-            <div class="row" style="justify-content:space-between;align-items:flex-start;">
-              <div>
-                <div style="font-size:24px;">${mod.key === 'overview' ? '🧭' : mod.key === 'react' ? '🧠' : mod.key === 'memory' ? '🧠' : mod.key === 'context' ? '🧩' : mod.key === 'mcp' ? '🔌' : mod.key === 'a2a' ? '🤝' : mod.key === 'anp' ? '🌐' : mod.key === 'rl' ? '⚙️' : '📊'}</div>
-                <h3 style="margin-top:8px;">${escapeHtml(mod.title)}</h3>
-              </div>
-              ${tag(mod.source, mod.source === 'live' ? 'live' : mod.source === 'mixed' ? 'mixed' : 'demo')}
-            </div>
-            <div class="desc">${escapeHtml(mod.description)}</div>
-            <div class="metric"><span>Headline metric</span><strong>${escapeHtml(mod.metric)}</strong></div>
-          </article>`;
-      }).join('');
-      root.innerHTML = `<div class="overview-grid">${cards}</div>`;
-      root.querySelectorAll('[data-jump]').forEach(node => {
-        node.addEventListener('click', () => setActivePanel(node.dataset.jump));
-      });
-    }
-
-    function renderMemory(root, data) {
-      const types = [
-        ['working', '工作记忆', data.working],
-        ['episodic', '情景记忆', data.episodic],
-        ['semantic', '语义记忆', data.semantic],
-        ['perceptual', '感知记忆', data.perceptual],
-      ];
-      const total = data.stats.count || 0;
-      const strip = `
-        <div class="grid grid-4" style="margin-bottom:14px;">
-          <div class="card"><div class="tiny">总条数</div><div style="font-size:24px;font-weight:900;">${total}</div></div>
-          <div class="card"><div class="tiny">平均重要性</div><div style="font-size:24px;font-weight:900;">${Number(data.stats.avg_importance).toFixed(3)}</div></div>
-          <div class="card"><div class="tiny">容量使用</div><div style="font-size:24px;font-weight:900;">${Math.round((data.stats.capacity_usage || 0) * 100)}%</div></div>
-          <div class="card"><div class="tiny">Token 使用</div><div style="font-size:24px;font-weight:900;">${Math.round((data.stats.token_usage || 0) * 100)}%</div></div>
-        </div>`;
-      const cols = types.map(([key, label, items]) => `
-        <div class="memory-column">
-          <h4><span>${label}</span><span class="tag demo">${items.length} 项</span></h4>
-          ${items.map(item => `
-            <div class="memory-item">
-              <div class="head">
-                <div><strong>${escapeHtml(item.id)}</strong></div>
-                <span class="badge ${item.importance >= 0.8 ? 'good' : item.importance >= 0.65 ? 'warn' : 'demo'}">${(item.importance * 100).toFixed(0)}%</span>
-              </div>
-              <div class="content">${escapeHtml(item.content)}</div>
-              <div class="importance-wrap">
-                <div class="importance-label"><span>importance</span><span>${item.importance.toFixed(2)}</span></div>
-                <div class="bar ${item.importance >= 0.8 ? 'good' : item.importance >= 0.65 ? 'warn' : 'bad'}"><span style="width:${(item.importance * 100).toFixed(0)}%"></span></div>
-              </div>
-              <div class="meta">
-                ${tag(item.memory_type, 'demo')}
-                <span class="tiny">${escapeHtml(item.timestamp)}</span>
-              </div>
-            </div>`).join('')}
-        </div>`).join('');
-      root.innerHTML = `
-        ${strip}
-        <div class="memory-columns">${cols}</div>
-        <div class="panel-note">
-          <strong>整合 / 遗忘示意：</strong>
-          ${escapeHtml(data.consolidation.result)}；${escapeHtml(data.forgetting.result)}。
-        </div>`;
-    }
-
-    function renderContext(root, data) {
-      const stages = data.pipeline.map((stage, idx) => `
-        <div class="card stage">
-          <div class="label">${escapeHtml(stage.stage)}</div>
-          <div class="row" style="justify-content:space-between;align-items:flex-start;">
-            <span class="badge">${stage.packets} packets</span>
-            <span class="badge">${stage.tokens_out} tokens</span>
-          </div>
-          <div class="sub" style="margin-top:10px;">输入 ${stage.tokens_in} tokens → 输出 ${stage.tokens_out} tokens</div>
-          <div class="arrow">→</div>
-        </div>`).join('');
-      const packetCards = data.packets.map(packet => `
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;">
-            <div><strong>${escapeHtml(packet.metadata.type)}</strong><div class="tiny">${escapeHtml(packet.metadata.packet_id)}</div></div>
-            <span class="badge">${packet.token_count} tok</span>
-          </div>
-          <div class="desc" style="margin-top:8px;">${escapeHtml(packet.content)}</div>
-          <div class="row" style="margin-top:10px;gap:8px;">
-            <span class="tag demo">relevance ${packet.relevance_score.toFixed(2)}</span>
-            <span class="tag demo">${escapeHtml(packet.timestamp)}</span>
-          </div>
-        </div>`).join('');
-      const budgetPct = Math.min(100, (data.budget.used_tokens / data.budget.available_tokens) * 100);
-      root.innerHTML = `
-        <div class="section">
-          <div class="section-title"><span>GSSC 流水线</span><span class="tag live">live</span></div>
-          <div class="stage-flow">${stages}</div>
-          <div class="budget">
-            <div class="row" style="justify-content:space-between;margin-bottom:8px;"><span class="tiny">最终 prompt 预算使用</span><span class="tiny">${data.budget.used_tokens} / ${data.budget.available_tokens} tokens</span></div>
-            <div class="bar"><span style="width:${budgetPct.toFixed(1)}%"></span></div>
-          </div>
+<!-- ============ Context ============ -->
+<section class="page" id="page-context">
+  <h2>🧩 上下文工程 Context Engineering</h2>
+  <div class="sub">ContextBuilder GSSC 流水线：Gather 收集 → Select 筛选 → Structure 结构化 → Compress 压缩</div>
+  <div class="card">
+    <div class="grid g2">
+      <div>
+        <label>用户问题</label>
+        <input id="ctx-query" type="text" value="MCP 协议的作用是什么？它和 A2A 有什么区别？" />
+        <label>系统指令</label>
+        <input id="ctx-system" type="text" value="你是一个精通智能体协议的中文助手，回答要简洁准确。" />
+        <label>对话历史（每行一条，格式 role: content）</label>
+        <textarea id="ctx-history">user: 你好，我在学习 HelloAgents 框架
+assistant: 你好！HelloAgents 是一个多智能体框架，我可以帮你讲解各模块。
+user: 智能体之间怎么通信？</textarea>
+      </div>
+      <div>
+        <label>额外知识片段（RAG 检索结果，每行一条）</label>
+        <textarea id="ctx-extra">MCP（Model Context Protocol）由 Anthropic 提出，标准化 LLM 与外部工具/资源的接入方式。
+A2A（Agent-to-Agent Protocol）定义智能体之间的互操作，通过 AgentCard 声明能力并互相调用技能。
+ANP（Agent Network Protocol）关注智能体网络层：服务注册、发现与消息路由。</textarea>
+        <div class="row">
+          <div style="flex:1"><label>Token 预算</label><input id="ctx-budget" type="number" value="2000" /></div>
+          <div style="flex:1"><label>最小相关性</label><input id="ctx-minrel" type="number" step="0.1" value="0.3" /></div>
+          <div style="flex:1"><label>MMR λ</label><input id="ctx-mmr" type="number" step="0.1" value="0.7" /></div>
         </div>
-        <div class="section">
-          <div class="section-title"><span>候选 ContextPacket</span><span class="tag live">tokenized</span></div>
-          <div class="grid grid-2">${packetCards}</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>HistoryManager / ObservationTruncator</span><span class="tag live">live</span></div>
-          <div class="history-summary">
-            <div class="card"><div class="tiny">总轮次</div><div style="font-size:22px;font-weight:900;">${data.history.total_rounds}</div><div class="mini">min_retain_rounds = ${data.history.min_retain_rounds}</div></div>
-            <div class="card"><div class="tiny">压缩阈值</div><div style="font-size:22px;font-weight:900;">${data.history.compression_threshold}</div><div class="mini">保留最近 ${data.history.retained_rounds} 轮</div></div>
-            <div class="card"><div class="tiny">摘要</div><div style="font-size:12px;line-height:1.65;margin-top:8px;">${escapeHtml(data.history.summary)}</div></div>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>工具输出截断前后</span><span class="tag live">head</span></div>
-          <div class="truncate-grid">
-            <div class="truncate-box">
-              <div class="row" style="justify-content:space-between;margin-bottom:8px;"><strong>Before</strong><span class="badge">${data.truncation.before.lines} lines</span></div>
-              <pre>${escapeHtml(`tool-output-001:\n${Array.from({length:8}, (_,i)=>`第 ${i+1} 行内容...`).join('\n')}\n...\n(共 ${data.truncation.before.lines} 行, ${data.truncation.before.bytes} bytes)`)}</pre>
-            </div>
-            <div class="truncate-box">
-              <div class="row" style="justify-content:space-between;margin-bottom:8px;"><strong>After</strong><span class="badge">truncated</span></div>
-              <pre>${escapeHtml(data.truncation.after.preview)}</pre>
-              <div class="footer-line">完整输出保存：${escapeHtml(data.truncation.after.full_output_path)}</div>
-            </div>
-          </div>
-        </div>`;
-    }
+        <button id="ctx-build">🚀 构建上下文</button>
+        <div class="status" id="ctx-status"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px" id="ctx-budget-card" hidden>
+    <h3>Token 预算</h3>
+    <div class="row"><div style="flex:1"><div class="bar-wrap"><div class="bar" id="ctx-bar" style="width:0%"></div></div></div>
+    <span id="ctx-bar-label" style="font-size:12px;color:var(--muted)"></span></div>
+  </div>
+  <div class="pipeline" id="ctx-pipeline"></div>
+  <div class="card" style="margin-top:14px" id="ctx-final-card" hidden>
+    <h3>🎁 最终上下文（喂给 LLM 的 Prompt）</h3>
+    <pre id="ctx-final"></pre>
+  </div>
+</section>
 
-    function renderMCP(root, data) {
-      const sections = data.explanation.map(item => `
-        <div class="card"><strong>${escapeHtml(item.key)}</strong><div class="desc">${escapeHtml(item.description)}</div></div>`).join('');
-      root.innerHTML = `
-        <div class="section">
-          <div class="section-title"><span>结构说明</span><span class="tag live">live</span></div>
-          <div class="grid grid-4">${sections}</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Built Context</span><span class="tag live">round-trip ${data.round_trip_equal ? 'ok' : 'mismatch'}</span></div>
-          <pre class="json">${jsonHighlight(data.built_context)}</pre>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Parsed Context</span><span class="tag live">parse_context</span></div>
-          <pre class="json">${jsonHighlight(data.parsed_context)}</pre>
-        </div>`;
-    }
+<!-- ============ MCP ============ -->
+<section class="page" id="page-mcp">
+  <h2>🔌 MCP · Model Context Protocol</h2>
+  <div class="sub">fastmcp 内存传输：MCPClient ⇆ MCPServer（list_tools / call_tool / ping）</div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>🖥 服务器与工具</h3>
+      <button class="ghost" id="mcp-refresh">连接并列出工具</button>
+      <div class="status" id="mcp-status"></div>
+      <div id="mcp-server-info"></div>
+      <div id="mcp-tools"></div>
+    </div>
+    <div class="card">
+      <h3>⚡ 调用工具 call_tool</h3>
+      <label>工具</label>
+      <select id="mcp-tool"><option value="calculator">calculator</option><option value="greet">greet</option></select>
+      <label>参数 (JSON)</label>
+      <textarea id="mcp-args">{"expression": "15 * 23 + 45"}</textarea>
+      <button id="mcp-call">调用</button>
+      <div id="mcp-log" style="margin-top:12px"></div>
+    </div>
+  </div>
+</section>
 
-    function renderA2A(root, data) {
-      const cards = data.agents.map(agent => `
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;">
-            <div><h3>${escapeHtml(agent.name)}</h3><div class="tiny">${escapeHtml(agent.description)}</div></div>
-            <span class="tag live">${escapeHtml(agent.protocol)}</span>
-          </div>
-          <table class="table" style="margin-top:10px;">
-            <tr><th>version</th><td>${escapeHtml(agent.version)}</td></tr>
-            <tr><th>capabilities</th><td>${escapeHtml(JSON.stringify(agent.capabilities))}</td></tr>
-            <tr><th>skills</th><td>${escapeHtml(agent.skills.join(', ') || '—')}</td></tr>
-          </table>
-        </div>`).join('');
-      const registryRows = data.registry.agents.map(agent => `<tr><td>${escapeHtml(agent.name)}</td><td>${escapeHtml(agent.url)}</td><td>${escapeHtml(JSON.stringify(agent.metadata || {}))}</td></tr>`).join('');
-      const flows = data.delegation_flow.map(step => `
-        <div class="flow-step">
-          <div class="badge">${escapeHtml(step.from)}</div>
-          <div class="arrow">→</div>
-          <div class="text"><div><strong>${escapeHtml(step.to)}</strong></div><div class="tiny">${escapeHtml(step.message)}</div></div>
-        </div>`).join('');
-      root.innerHTML = `
-        <div class="section"><div class="section-title"><span>Agent Cards</span><span class="tag live">live</span></div><div class="agent-cards">${cards}</div></div>
-        <div class="section"><div class="section-title"><span>Registry</span><span class="tag live">${data.registry.info.registered_agents} agents</span></div>
-          <table class="table">
-            <thead><tr><th>name</th><th>url</th><th>metadata</th></tr></thead>
-            <tbody>${registryRows}</tbody>
-          </table>
-        </div>
-        <div class="section"><div class="section-title"><span>Task Delegation Flow</span><span class="tag live">illustrative</span></div><div class="flow-list">${flows}</div></div>`;
-    }
+<!-- ============ A2A ============ -->
+<section class="page" id="page-a2a">
+  <h2>🤝 A2A · Agent-to-Agent Protocol</h2>
+  <div class="sub">真实 Flask A2AServer × 2 + A2AClient(HTTP) + AgentNetwork / AgentRegistry</div>
+  <div class="card">
+    <div class="row">
+      <button id="a2a-start">🚀 启动 Agent 网络</button>
+      <span class="status" id="a2a-status"></span>
+    </div>
+    <div class="grid g2" id="a2a-agents" style="margin-top:12px"></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>💬 跨 Agent 调用</h3>
+    <div class="row">
+      <div style="flex:1"><label>目标 Agent</label>
+        <select id="a2a-agent"><option value="translator-agent">translator-agent</option><option value="math-agent">math-agent</option></select></div>
+      <div style="flex:1"><label>技能（auto = 自动路由）</label>
+        <select id="a2a-skill"><option value="">auto</option><option>uppercase</option><option>reverse</option><option>word_count</option><option>calculate</option></select></div>
+    </div>
+    <label>输入</label>
+    <input id="a2a-q" type="text" value="(15 + 5) * 2" />
+    <button id="a2a-ask">发送</button>
+    <div id="a2a-log" style="margin-top:12px"></div>
+  </div>
+</section>
 
-    function renderANP(root, data) {
-      const nodes = data.network.nodes.filter(Boolean);
-      const edges = data.network.edges || [];
-      const width = 860;
-      const height = 440;
-      const cx = width / 2;
-      const cy = height / 2;
-      const radius = 155;
-      const positions = nodes.map((node, idx) => {
-        const angle = (-Math.PI / 2) + (idx * Math.PI * 2 / nodes.length);
-        return {
-          ...node,
-          x: cx + Math.cos(angle) * radius,
-          y: cy + Math.sin(angle) * radius,
-        };
-      });
-      const map = Object.fromEntries(positions.map(n => [n.node_id, n]));
-      const route = data.route_example.path || [];
-      const routePairs = new Set();
-      for (let i = 0; i < route.length - 1; i++) routePairs.add(`${route[i]}->${route[i+1]}`);
-      const svgEdges = edges.map(edge => {
-        const a = map[edge.from], b = map[edge.to];
-        if (!a || !b) return '';
-        const isRoute = routePairs.has(`${edge.from}->${edge.to}`);
-        return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${isRoute ? 'route' : 'edge'}" />`;
-      }).join('');
-      const svgNodes = positions.map(node => `
-        <g>
-          <circle cx="${node.x}" cy="${node.y}" r="26" class="node ${node.status === 'active' ? 'active' : ''}" />
-          <text x="${node.x}" y="${node.y - 38}" text-anchor="middle" class="node-label">${escapeHtml(node.node_id)}</text>
-          <text x="${node.x}" y="${node.y + 46}" text-anchor="middle" class="node-sub">${escapeHtml(node.metadata.service_type || '')}</text>
-        </g>`).join('');
-      const serviceRows = data.services.map(s => `<tr><td>${escapeHtml(s.service_id)}</td><td>${escapeHtml(s.service_type)}</td><td>${escapeHtml(s.endpoint)}</td><td>${escapeHtml((s.capabilities || []).join(', '))}</td></tr>`).join('');
-      const stats = data.stats;
-      root.innerHTML = `
-        <style>
-          .graph svg { width: 100%; height: 440px; display: block; }
-          .edge { stroke: rgba(145,164,196,.45); stroke-width: 2.2; }
-          .route { stroke: #fbbf24; stroke-width: 4; stroke-linecap: round; }
-          .node { fill: rgba(33,200,246,.18); stroke: rgba(125,211,252,.68); stroke-width: 2; }
-          .node.active { fill: rgba(124,141,255,.30); stroke: rgba(124,141,255,.9); }
-          .node-label { fill: #edf4ff; font-size: 12px; font-weight: 800; }
-          .node-sub { fill: #91a4c4; font-size: 10px; }
-        </style>
-        <div class="section">
-          <div class="section-title"><span>Network Stats</span><span class="tag live">live</span></div>
-          <div class="metrics-grid">
-            <div class="card"><div class="tiny">Total Nodes</div><div style="font-size:24px;font-weight:900;">${stats.total_nodes}</div></div>
-            <div class="card"><div class="tiny">Active Nodes</div><div style="font-size:24px;font-weight:900;">${stats.active_nodes}</div></div>
-            <div class="card"><div class="tiny">Total Connections</div><div style="font-size:24px;font-weight:900;">${stats.total_connections}</div></div>
-            <div class="card"><div class="tiny">Route Path</div><div style="font-size:24px;font-weight:900;">${(data.route_example.path || []).length ? data.route_example.path.length : 0}</div></div>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>拓扑图</span><span class="tag live">SVG</span></div>
-          <div class="graph-legend"><span class="legend-node">Node</span><span class="legend-edge">Edge</span><span class="legend-route">Routed path</span></div>
-          <div class="graph-wrap graph">
-            <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="ANP network graph">
-              <defs>
-                <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              </defs>
-              ${svgEdges}
-              ${svgNodes}
-            </svg>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Services</span><span class="tag live">${data.services.length} services</span></div>
-          <table class="table">
-            <thead><tr><th>service_id</th><th>type</th><th>endpoint</th><th>capabilities</th></tr></thead>
-            <tbody>${serviceRows}</tbody>
-          </table>
-          <div class="panel-note">路由示例：${escapeHtml((data.route_example.path || []).join(' → ') || '无路径')}</div>
-        </div>`;
-    }
+<!-- ============ ANP ============ -->
+<section class="page" id="page-anp">
+  <h2>🌐 ANP · Agent Network Protocol</h2>
+  <div class="sub">ANPNetwork 消息路由/广播 + ANPDiscovery 服务发现</div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>🕸 网络拓扑</h3>
+      <svg id="anp-svg" width="100%" height="300" viewBox="0 0 460 300"></svg>
+      <div id="anp-stats" style="font-size:12px;color:var(--muted)"></div>
+      <div class="row">
+        <input id="anp-newnode" type="text" placeholder="新节点 ID，如 node4" style="flex:1" />
+        <select id="anp-connect" style="width:auto"></select>
+        <button class="ghost" id="anp-add">添加节点</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📨 消息路由 / 广播</h3>
+      <div class="row">
+        <div style="flex:1"><label>源节点</label><select id="anp-from"></select></div>
+        <div style="flex:1"><label>目标节点</label><select id="anp-to"></select></div>
+      </div>
+      <label>消息</label>
+      <input id="anp-msg" type="text" value="任务分派：请处理子任务 #42" />
+      <div class="row">
+        <button id="anp-route">➡️ 路由</button>
+        <button class="ghost" id="anp-broadcast">📢 广播</button>
+      </div>
+      <div class="status" id="anp-status"></div>
+      <div class="anp-log" id="anp-log"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🔍 服务发现 ANPDiscovery</h3>
+    <div class="row">
+      <select id="anp-svc-type" style="width:auto">
+        <option value="">全部类型</option><option value="nlp">nlp</option>
+        <option value="math">math</option><option value="retrieval">retrieval</option>
+      </select>
+      <button class="ghost" id="anp-discover">发现服务</button>
+    </div>
+    <div id="anp-services" style="margin-top:10px"></div>
+  </div>
+</section>
 
-    function renderRL(root, data) {
-      const configCards = Object.entries(data.configs).map(([name, cfg]) => `
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;">
-            <h3>${escapeHtml(name)}</h3>
-            ${tag(name === 'SFT' ? 'sft' : name === 'GRPO' ? 'grpo' : 'ppo', 'demo')}
-          </div>
-          ${kvTable({
-            model_name: cfg.model_name,
-            output_dir: cfg.output_dir,
-            epochs: cfg.num_train_epochs,
-            batch_size: cfg.per_device_train_batch_size,
-            grad_accum: cfg.gradient_accumulation_steps,
-            learning_rate: cfg.learning_rate,
-            max_new_tokens: cfg.max_new_tokens,
-            temperature: cfg.temperature,
-            top_p: cfg.top_p,
-          })}
-        </div>`).join('');
-      const agg = data.aggregate;
-      const rewardsRows = data.reward_examples.map((x, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
-          <td><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;">${escapeHtml(x.completion)}</pre></td>
-          <td>${escapeHtml(x.ground_truth)}</td>
-          <td>${escapeHtml(x.extracted_answer || '—')}</td>
-          <td><span class="badge ${x.reward > 0.5 ? 'good' : 'bad'}">${x.reward.toFixed(0)}</span></td>
-        </tr>`).join('');
-      const chart = buildLineChart(data.curve, 920, 250, 'reward');
-      root.innerHTML = `
-        <div class="section">
-          <div class="section-title"><span>训练配置</span><span class="tag demo">TrainingConfig</span></div>
-          <div class="config-grid">${configCards}</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Reward Curve</span><span class="tag demo">30 steps</span></div>
-          <div class="chart-box">${chart}</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>MathRewardFunction 样例</span><span class="tag demo">demo</span></div>
-          <table class="table">
-            <thead><tr><th>#</th><th>completion</th><th>ground_truth</th><th>extracted</th><th>reward</th></tr></thead>
-            <tbody>${rewardsRows}</tbody>
-          </table>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Aggregate</span><span class="tag demo">evaluate_rewards</span></div>
-          <div class="metrics-grid">
-            <div class="card"><div class="tiny">mean_reward</div><div style="font-size:24px;font-weight:900;">${agg.mean_reward}</div></div>
-            <div class="card"><div class="tiny">max_reward</div><div style="font-size:24px;font-weight:900;">${agg.max_reward}</div></div>
-            <div class="card"><div class="tiny">min_reward</div><div style="font-size:24px;font-weight:900;">${agg.min_reward}</div></div>
-            <div class="card"><div class="tiny">accuracy</div><div style="font-size:24px;font-weight:900;">${(agg.accuracy * 100).toFixed(0)}%</div></div>
-          </div>
-          <div class="panel-note">${escapeHtml(data.note)}</div>
-        </div>`;
-    }
+<!-- ============ RL ============ -->
+<section class="page" id="page-rl">
+  <h2>🎯 强化学习 Agentic RL</h2>
+  <div class="sub">奖励函数试算（真实 rewards 模块）+ SFT/GRPO/PPO 训练曲线 <span id="rl-trl" class="badge warn">检测中…</span></div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>🧮 奖励函数试炼场</h3>
+      <label>模型输出（每行一条，用 #### 或 \boxed{} 标注答案）</label>
+      <textarea id="rl-completions" style="min-height:100px">先算 15*23=345，再加 45。#### 390
 
-    function renderEval(root, data) {
-      const bfcl = data.bfcl;
-      const gaia = data.gaia;
-      const win = data.win_rate;
-      const judge = data.llm_judge;
-      const scoreDist = bfcl.score_distribution || {};
-      const bfclCards = `
-        <div class="metrics-grid">
-          <div class="card"><div class="tiny">Accuracy</div><div style="font-size:24px;font-weight:900;">${(bfcl.accuracy * 100).toFixed(0)}%</div><div class="bar good" style="margin-top:10px;"><span style="width:${(bfcl.accuracy * 100).toFixed(1)}%"></span></div></div>
-          <div class="card"><div class="tiny">Average Score</div><div style="font-size:24px;font-weight:900;">${bfcl.average_score.toFixed(2)}</div><div class="bar warn" style="margin-top:10px;"><span style="width:${Math.min(100, bfcl.average_score * 100).toFixed(1)}%"></span></div></div>
-          <div class="card"><div class="tiny">Avg Execution Time</div><div style="font-size:24px;font-weight:900;">${bfcl.average_execution_time.toFixed(2)}s</div></div>
-          <div class="card"><div class="tiny">Function Calls</div><div style="font-size:24px;font-weight:900;">${bfcl.function_call_stats.total_function_calls}</div></div>
-        </div>`;
-      const bfclTable = kvTable({
-        total_samples: bfcl.total_samples,
-        success_count: bfcl.success_count,
-        unique_functions: bfcl.function_call_stats.unique_functions,
-        function_names: (bfcl.function_call_stats.function_names || []).join(', '),
-        score_min: scoreDist.min,
-        score_mean: scoreDist.mean,
-        score_median: scoreDist.median,
-        score_max: scoreDist.max,
-      });
-      const levelBars = [1, 2, 3].map(level => {
-        const item = gaia.level_metrics[`Level_${level}`];
-        const rate = item.total ? item.exact_match_rate : 0;
-        return `
-          <div class="card">
-            <div class="row" style="justify-content:space-between;align-items:flex-start;">
-              <strong>Level ${level}</strong><span class="badge ${level === 1 ? 'good' : level === 2 ? 'warn' : 'bad'}">${item.total} 样本</span>
-            </div>
-            <div class="tiny" style="margin-top:8px;">Exact ${item.exact_match_rate.toFixed(2)} · Partial ${item.partial_match_rate.toFixed(2)}</div>
-            <div class="bar" style="margin-top:10px;"><span style="width:${(rate * 100).toFixed(1)}%"></span></div>
-            <div class="tiny" style="margin-top:8px;">Avg score ${item.average_score.toFixed(2)}</div>
-          </div>`;
-      }).join('');
-      const winStack = `
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;">
-            <strong>Win / Tie / Loss</strong><span class="tag demo">${win.metrics.total_comparisons} comps</span>
-          </div>
-          <div class="bar" style="margin-top:12px; display:flex; overflow:hidden; height:14px;">
-            <span style="width:${(win.metrics.win_rate * 100).toFixed(1)}%; background:linear-gradient(90deg,#22c55e,#86efac);"></span>
-            <span style="width:${(win.metrics.tie_rate * 100).toFixed(1)}%; background:linear-gradient(90deg,#fbbf24,#fde68a);"></span>
-            <span style="width:${(win.metrics.loss_rate * 100).toFixed(1)}%; background:linear-gradient(90deg,#fb7185,#fda4af);"></span>
-          </div>
-          <div class="row" style="justify-content:space-between;margin-top:10px;"><span class="tiny">Win ${(win.metrics.win_rate * 100).toFixed(0)}%</span><span class="tiny">Tie ${(win.metrics.tie_rate * 100).toFixed(0)}%</span><span class="tiny">Loss ${(win.metrics.loss_rate * 100).toFixed(0)}%</span></div>
-        </div>`;
-      const judgeBars = Object.entries(judge.dimension_averages).map(([k, v]) => `
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;"><strong>${escapeHtml(k)}</strong><span class="badge demo">${v.toFixed(1)} / 10</span></div>
-          <div class="bar" style="margin-top:10px;"><span style="width:${(v / 10 * 100).toFixed(1)}%"></span></div>
-        </div>`).join('');
-      root.innerHTML = `
-        <div class="section">
-          <div class="section-title"><span>BFCL</span><span class="tag live">live</span></div>
-          ${bfclCards}
-          <div class="grid grid-2" style="margin-top:14px;">
-            <div class="card">${bfclTable}</div>
-            <div class="card"><pre class="json">${jsonHighlight({ category_metrics: bfcl.category_metrics, function_call_stats: bfcl.function_call_stats })}</pre></div>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>GAIA</span><span class="tag demo">demo</span></div>
-          <div class="grid grid-3">${levelBars}</div>
-          <div class="panel-note">Average execution time：${gaia.average_execution_time.toFixed(2)}s · total_samples：${gaia.total_samples}</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Win Rate</span><span class="tag demo">demo</span></div>
-          ${winStack}
-          <div class="panel-note">${escapeHtml(win.note)}</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>LLM Judge</span><span class="tag demo">demo</span></div>
-          <div class="grid grid-4">${judgeBars}</div>
-          <div class="metrics-grid" style="margin-top:14px;">
-            <div class="card"><div class="tiny">Average Total Score</div><div style="font-size:24px;font-weight:900;">${judge.average_total_score.toFixed(2)}</div></div>
-            <div class="card"><div class="tiny">Pass Rate</div><div style="font-size:24px;font-weight:900;">${(judge.pass_rate * 100).toFixed(0)}%</div></div>
-            <div class="card"><div class="tiny">Excellent Rate</div><div style="font-size:24px;font-weight:900;">${(judge.excellent_rate * 100).toFixed(0)}%</div></div>
-            <div class="card"><div class="tiny">Source</div><div style="font-size:24px;font-weight:900;">demo</div></div>
-          </div>
-        </div>`;
-    }
+心算一下大概是 400 吧 #### 400
 
-    function buildLineChart(points, width = 900, height = 250, label = 'value') {
-      const padding = 28;
-      const values = points.map(p => p.reward);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const span = Math.max(0.001, max - min);
-      const xStep = (width - padding * 2) / Math.max(1, points.length - 1);
-      const coords = points.map((p, i) => {
-        const x = padding + i * xStep;
-        const y = height - padding - ((p.reward - min) / span) * (height - padding * 2);
-        return [x, y];
-      });
-      const d = coords.map((c, i) => `${i ? 'L' : 'M'} ${c[0].toFixed(1)} ${c[1].toFixed(1)}`).join(' ');
-      const area = `M ${padding} ${height - padding} ${coords.map(c => `L ${c[0].toFixed(1)} ${c[1].toFixed(1)}`).join(' ')} L ${width - padding} ${height - padding} Z`;
-      const ticks = Array.from({length: 5}, (_, i) => {
-        const y = padding + (height - padding * 2) * i / 4;
-        const value = (max - (span * i / 4)).toFixed(2);
-        return `<g><line x1="${padding}" x2="${width - padding}" y1="${y}" y2="${y}" stroke="rgba(145,164,196,.16)" /><text x="8" y="${y + 4}" fill="#91a4c4" font-size="10">${value}</text></g>`;
-      }).join('');
-      const xLabels = points.filter((_, i) => i % 5 === 0 || i === points.length - 1).map((p, i) => {
-        const idx = points.findIndex(pt => pt.step === p.step);
-        const x = padding + idx * xStep;
-        return `<text x="${x}" y="${height - 6}" text-anchor="middle" fill="#91a4c4" font-size="10">${p.step}</text>`;
-      }).join('');
-      return `
-        <svg class="chart" viewBox="0 0 ${width} ${height}" aria-label="${escapeHtml(label)} chart">
-          ${ticks}
-          <path d="${area}" fill="rgba(124,141,255,.13)" />
-          <path d="${d}" fill="none" stroke="url(#chartGrad)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
-          ${coords.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.3" fill="#7dd3fc" stroke="#0d1728" stroke-width="2" />`).join('')}
-          ${xLabels}
-          <defs>
-            <linearGradient id="chartGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="#7c8dff" />
-              <stop offset="100%" stop-color="#21c8f6" />
-            </linearGradient>
-          </defs>
-        </svg>`;
-    }
+第一步：15*23=345
+第二步：345+45=390
+所以答案是 #### 390</textarea>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">多行样本用空行分隔</div>
+      <label>标准答案（每行一条，与上面一一对应）</label>
+      <textarea id="rl-truths">390
+390
+390</textarea>
+      <div class="row">
+        <label style="margin:0"><input type="checkbox" id="rl-lenpen" /> 长度惩罚</label>
+        <label style="margin:0"><input type="checkbox" id="rl-stepbonus" checked /> 步骤奖励</label>
+        <button id="rl-eval" style="margin:0">计算奖励</button>
+      </div>
+      <div id="rl-reward-out" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h3>📈 训练曲线（GRPO/PPO/SFT）</h3>
+      <div class="row">
+        <select id="rl-algo" style="width:auto"><option>GRPO</option><option>PPO</option><option>SFT</option></select>
+        <input id="rl-steps" type="number" value="40" style="width:90px" />
+        <button id="rl-train">开始训练</button>
+      </div>
+      <div class="status" id="rl-train-status"></div>
+      <canvas id="rl-chart" height="240"></canvas>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">
+        <span style="color:var(--observation)">●</span> reward_mean&nbsp;
+        <span style="color:var(--error)">●</span> loss&nbsp;
+        <span style="color:var(--final)">●</span> KL
+      </div>
+      <div class="card" style="margin-top:10px;padding:10px 12px">
+        <h3 style="margin-bottom:6px">TrainingConfig 默认值</h3>
+        <pre id="rl-config" style="max-height:160px"></pre>
+      </div>
+    </div>
+  </div>
+</section>
 
-    function renderReactEvent(ev) {
-      if (ev.type === 'end') { setReactStatus('✅ 流程结束'); return; }
-      const div = document.createElement('div');
-      div.className = `event t-${ev.type}`;
-      const label = { start: '开始', thought: '思考', action: '行动', observation: '观察', final: '最终答案', error: '错误' }[ev.type] || ev.type;
-      const step = ev.step ? `<span class="estep">第 ${ev.step} 步</span>` : '';
-      let html = `<div><span class="etype">${label}</span>${step}</div>`;
-      if (ev.content) html += `<div class="econtent">${escapeHtml(ev.content)}</div>`;
-      if (ev.tool) html += `<div class="toolchip">${escapeHtml(ev.tool)}[${escapeHtml(ev.tool_input || '')}]</div>`;
-      div.innerHTML = html;
-      document.getElementById('react-timeline').appendChild(div);
-      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
+<!-- ============ Eval ============ -->
+<section class="page" id="page-eval">
+  <h2>📏 评估 Evaluation</h2>
+  <div class="sub">BFCLMetrics / GAIAMetrics 真实指标计算（演示数据集） + LLM Judge / Win Rate</div>
+  <div class="grid g2" id="eval-benchmarks"></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card">
+      <h3>🛠 BFCL 工具调用评估</h3>
+      <button class="ghost" id="eval-bfcl">运行 BFCL 指标计算</button>
+      <div id="eval-bfcl-out" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>🧑‍🔬 GAIA 通用助手评估</h3>
+      <button class="ghost" id="eval-gaia">运行 GAIA 指标计算</button>
+      <div id="eval-gaia-out" style="margin-top:10px"></div>
+    </div>
+  </div>
+</section>
 
-    function setReactStatus(text) {
-      document.getElementById('react-status').textContent = text;
-    }
+</main>
 
-    function stopReactStream() {
-      if (state.react.es) {
-        state.react.es.close();
-        state.react.es = null;
-      }
-    }
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json();
+  if (j.ok === undefined) return j;
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+const post = (path, body) => api(path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
 
-    function runReact() {
-      stopReactStream();
-      const timeline = document.getElementById('react-timeline');
-      timeline.innerHTML = '';
-      const q = document.getElementById('react-q').value.trim();
-      const mode = document.getElementById('react-mode').value;
-      setReactStatus(`⏳ 运行中...（${mode === 'live' ? '真实 LLM' : '演示模式'}）`);
-      const btn = document.getElementById('react-run');
-      btn.disabled = true;
-      state.react.es = new EventSource(`/api/run?mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(q)}`);
-      state.react.es.onmessage = (e) => {
-        const ev = JSON.parse(e.data);
-        renderReactEvent(ev);
-        if (ev.type === 'end') {
-          stopReactStream();
-          btn.disabled = false;
-        }
-      };
-      state.react.es.onerror = () => {
-        setReactStatus('⚠️ 连接已结束或中断');
-        stopReactStream();
-        btn.disabled = false;
-      };
-    }
+/* ---------- 导航 ---------- */
+document.querySelectorAll(".nav-item").forEach(el => el.addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  el.classList.add("active");
+  $("page-" + el.dataset.page).classList.add("active");
+}));
 
-    function buildNav() {
-      nav.innerHTML = PANELS.map(panel => `
-        <button class="nav-item" data-key="${panel.key}">
-          <div class="nav-emoji">${panel.icon}</div>
-          <div class="nav-meta"><div class="nav-title">${escapeHtml(panel.title)}</div><div class="nav-desc">${escapeHtml(panel.desc)}</div></div>
-          <span class="dot ${panel.source === 'live' ? 'live' : 'demo'}"></span>
-        </button>`).join('');
-      nav.querySelectorAll('.nav-item').forEach(btn => {
-        btn.addEventListener('click', () => setActivePanel(btn.dataset.key));
-      });
-    }
-
-    buildNav();
-
-    document.getElementById('react-run').addEventListener('click', runReact);
-    document.getElementById('react-q').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') runReact();
+/* ---------- 总览 ---------- */
+async function loadOverview() {
+  try {
+    const d = await api("/api/overview");
+    $("ov-version").textContent = "v" + d.version;
+    const icons = {memory:"🧠",context:"🧩",mcp:"🔌",a2a:"🤝",anp:"🌐",rl:"🎯",evaluation:"📏",agent:"🧭"};
+    $("ov-cards").innerHTML = Object.entries(d.modules).map(([k,m]) => `
+      <div class="card"><h3>${icons[k]||""} ${esc(m.label)}</h3>
+        <span class="badge ${m.available?"ok":"no"}">${m.available?"可用":"缺依赖"}</span>
+        ${k==="rl" ? `<span class="badge ${m.trl?"ok":"warn"}" style="margin-left:6px">TRL ${m.trl?"已安装":"未安装(曲线模拟)"}</span>` : ""}
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">${esc(m.detail)}</div></div>`).join("");
+    Object.entries(d.modules).forEach(([k,m]) => {
+      const dot = $("dot-"+k); if (dot) dot.className = "dot " + (m.available?"on":"off");
     });
+    $("dot-overview").className = "dot on";
+  } catch(e) { console.error(e); }
+}
+loadOverview();
 
-    fetch('/api/overview')
-      .then(r => r.json())
-      .then(data => {
-        state.data.overview = data;
-        renderOverview(document.getElementById('overview-grid').parentElement, data);
-        state.loaded.add('overview');
-        versionPill.textContent = `v${data.version || 'unknown'}`;
-        overviewVersion.textContent = `v${data.version || 'unknown'}`;
-        overviewSource.textContent = data.source || 'live';
-        setActivePanel('overview');
-      })
-      .catch(() => {
-        document.getElementById('overview-grid').innerHTML = '<div class="card">概览加载失败</div>';
-      });
+/* ---------- Agent ---------- */
+const AG_LABELS = {start:"开始",thought:"思考",action:"行动",observation:"观察",final:"最终答案",error:"错误",end:"结束"};
+let agES = null;
+$("ag-run").addEventListener("click", () => {
+  if (agES) agES.close();
+  $("ag-timeline").innerHTML = "";
+  const mode = $("ag-mode").value;
+  $("ag-run").disabled = true;
+  $("ag-status").textContent = "⏳ 运行中...（" + (mode==="live"?"真实 LLM":"演示模式") + "）";
+  agES = new EventSource(`/api/run?mode=${mode}&q=${encodeURIComponent($("ag-q").value.trim())}`);
+  agES.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === "end") { $("ag-status").textContent = "✅ 流程结束"; agES.close(); $("ag-run").disabled = false; return; }
+    const div = document.createElement("div");
+    div.className = "event t-" + ev.type;
+    let inner = `<div><span class="etype">${AG_LABELS[ev.type]||ev.type}</span>${ev.step?`<span class="estep">第 ${ev.step} 步</span>`:""}</div>`;
+    if (ev.content) inner += `<div class="econtent">${esc(ev.content)}</div>`;
+    if (ev.tool) inner += `<div class="tool">${esc(ev.tool)}[${esc(ev.tool_input||"")}]</div>`;
+    div.innerHTML = inner;
+    $("ag-timeline").appendChild(div);
+    div.scrollIntoView({behavior:"smooth", block:"end"});
+  };
+  agES.onerror = () => { $("ag-status").textContent = "⚠️ 连接中断或已结束"; agES.close(); $("ag-run").disabled = false; };
+});
 
-    // Re-render overview with same helper after data load.
-    function renderOverview(root, data) {
-      const gridRoot = document.getElementById('overview-grid');
-      const cards = data.modules.map(mod => `
-        <article class="card overview-card" data-jump="${escapeHtml(mod.key)}">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;">
-            <div>
-              <div style="font-size:24px;">${mod.key === 'overview' ? '🧭' : mod.key === 'react' ? '🧠' : mod.key === 'memory' ? '🧠' : mod.key === 'context' ? '🧩' : mod.key === 'mcp' ? '🔌' : mod.key === 'a2a' ? '🤝' : mod.key === 'anp' ? '🌐' : mod.key === 'rl' ? '⚙️' : '📊'}</div>
-              <h3 style="margin-top:8px;">${escapeHtml(mod.title)}</h3>
-            </div>
-            ${tag(mod.source, mod.source === 'live' ? 'live' : mod.source === 'mixed' ? 'mixed' : 'demo')}
-          </div>
-          <div class="desc">${escapeHtml(mod.description)}</div>
-          <div class="metric"><span>Headline metric</span><strong>${escapeHtml(mod.metric)}</strong></div>
-        </article>`).join('');
-      gridRoot.innerHTML = cards;
-      gridRoot.querySelectorAll('[data-jump]').forEach(node => node.addEventListener('click', () => setActivePanel(node.dataset.jump)));
+/* ---------- Memory ---------- */
+function renderMemStats(stats) {
+  const byType = stats.memories_by_type || {};
+  let html = `<div class="big">${stats.total_memories ?? 0} <span style="font-size:13px;color:var(--muted)">条记忆</span></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">启用类型: ${(stats.enabled_types||[]).join(", ")}</div>`;
+  for (const [t, s] of Object.entries(byType)) {
+    const usage = Math.round((s.capacity_usage ?? 0) * 100);
+    html += `<div style="margin-bottom:8px"><div style="font-size:12px;margin-bottom:3px">${t} · ${s.count ?? "?"} 条 · 平均重要性 ${(s.avg_importance??0).toFixed?.(2) ?? s.avg_importance}</div>
+      <div class="bar-wrap"><div class="bar" style="width:${usage}%"></div></div>
+      <div style="font-size:11px;color:var(--muted)">容量占用 ${usage}%</div></div>`;
+  }
+  $("mem-stats").innerHTML = html;
+}
+async function refreshMemStats() {
+  try {
+    const d = await api("/api/memory/stats");
+    renderMemStats(d.stats);
+    if (d.degraded) { $("mem-degraded").style.display=""; $("mem-degraded").textContent = d.degraded; }
+  } catch(e) { $("mem-stats").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+}
+$("mem-add").addEventListener("click", async () => {
+  $("mem-add-status").textContent = "⏳ 写入中...";
+  try {
+    const imp = $("mem-importance").value;
+    const d = await post("/api/memory/add", {
+      content: $("mem-content").value, memory_type: $("mem-type").value,
+      importance: imp === "" ? null : parseFloat(imp), auto_classify: $("mem-auto").value === "1",
+    });
+    $("mem-add-status").textContent = "✅ 已写入 id=" + d.memory_id.slice(0,8);
+    renderMemStats(d.stats);
+  } catch(e) { $("mem-add-status").textContent = "❌ " + e.message; }
+});
+$("mem-search").addEventListener("click", async () => {
+  $("mem-results").innerHTML = "⏳";
+  try {
+    const d = await api("/api/memory/search?q=" + encodeURIComponent($("mem-q").value));
+    $("mem-results").innerHTML = d.items.length === 0 ? '<span style="font-size:12px;color:var(--muted)">未找到相关记忆</span>' :
+      `<table><tr><th>类型</th><th>内容</th><th>重要性</th><th>时间</th></tr>` +
+      d.items.map(i => `<tr><td><span class="badge ok">${i.memory_type}</span></td><td>${esc(i.content)}</td><td>${i.importance}</td><td>${i.timestamp}</td></tr>`).join("") + "</table>";
+  } catch(e) { $("mem-results").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+});
+for (const [btn, path, label] of [["mem-consolidate","/api/memory/consolidate","巩固"],["mem-clear","/api/memory/clear","清空"]]) {
+  $(btn).addEventListener("click", async () => {
+    $("mem-op-status").textContent = "⏳";
+    try { const d = await post(path, {}); renderMemStats(d.stats); $("mem-op-status").textContent = "✅ " + label + "完成"; }
+    catch(e) { $("mem-op-status").textContent = "❌ " + e.message; }
+  });
+}
+$("mem-forget").addEventListener("click", async () => {
+  $("mem-op-status").textContent = "⏳";
+  try { const d = await post("/api/memory/forget", {strategy:"importance_based", threshold:0.3});
+    renderMemStats(d.stats); $("mem-op-status").textContent = `✅ 遗忘完成，移除 ${JSON.stringify(d.removed)} 条`; }
+  catch(e) { $("mem-op-status").textContent = "❌ " + e.message; }
+});
+refreshMemStats();
+
+/* ---------- Context ---------- */
+$("ctx-build").addEventListener("click", async () => {
+  $("ctx-status").textContent = "⏳ 构建中...";
+  try {
+    const history = $("ctx-history").value.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+      const m = l.match(/^(user|assistant|system)\s*[:：]\s*(.*)$/i);
+      return m ? {role: m[1].toLowerCase(), content: m[2]} : {role: "user", content: l};
+    });
+    const d = await post("/api/context/build", {
+      query: $("ctx-query").value, system_instructions: $("ctx-system").value, history,
+      extra_packets: $("ctx-extra").value.split("\n").map(l => l.trim()).filter(Boolean),
+      max_tokens: parseInt($("ctx-budget").value)||2000,
+      min_relevance: parseFloat($("ctx-minrel").value)||0.3,
+      mmr_lambda: parseFloat($("ctx-mmr").value)||0.7,
+    });
+    $("ctx-status").textContent = "✅ 构建完成";
+    const used = d.compress.tokens, avail = d.budget.available_tokens;
+    $("ctx-budget-card").hidden = false;
+    $("ctx-bar").style.width = Math.min(100, used/avail*100) + "%";
+    $("ctx-bar-label").textContent = `${used} / ${avail} tokens（预算 ${d.budget.max_tokens}，预留 ${Math.round(d.budget.reserve_ratio*100)}%）`;
+    const pkt = (p, dropped) => `<div class="pkt${dropped?" dropped":""}"><b>[${esc(p.type)}]</b> ${esc(p.content.length>90?p.content.slice(0,90)+"…":p.content)}
+      <div class="meta">${p.token_count} tok · 相关性 ${p.relevance}</div></div>`;
+    $("ctx-pipeline").innerHTML = `
+      <div class="stage"><h4>1️⃣ Gather 收集 (${d.gather.length})</h4>${d.gather.map(p=>pkt(p,false)).join("")}</div>
+      <div class="stage"><h4>2️⃣ Select 筛选 (${d.select.length}/${d.gather.length})</h4>${d.gather.map(p=>pkt(p,!p.selected)).join("")}</div>
+      <div class="stage"><h4>3️⃣ Structure 结构化</h4><div class="pkt">${d.structure.tokens} tokens 的结构化模板<div class="meta">[Role &amp; Policies] → [Task] → [Context] → [Output]</div></div></div>
+      <div class="stage"><h4>4️⃣ Compress 压缩</h4><div class="pkt">${d.compress.tokens} tokens${d.compress.compressed?"（已压缩）":"（预算内，未压缩）"}</div></div>`;
+    $("ctx-final-card").hidden = false;
+    $("ctx-final").textContent = d.compress.text;
+  } catch(e) { $("ctx-status").textContent = "❌ " + e.message; }
+});
+
+/* ---------- MCP ---------- */
+$("mcp-refresh").addEventListener("click", async () => {
+  $("mcp-status").textContent = "⏳ 连接 MCP 服务器...";
+  try {
+    const d = await api("/api/mcp/info");
+    $("mcp-status").textContent = `✅ ping=${d.ping} · 传输: ${d.transport.transport_type}`;
+    $("mcp-server-info").innerHTML = `<div class="chip">📡 ${esc(d.server.name)}</div><div class="chip">${esc(d.server.description)}</div><div class="chip">协议: ${esc(d.server.protocol)}</div>`;
+    $("mcp-tools").innerHTML = "<h3 style='margin-top:12px'>tools/list</h3>" + d.tools.map(t =>
+      `<div class="pkt" style="margin-bottom:6px"><b>🛠 ${esc(t.name)}</b><div class="meta">${esc(t.description||"")}</div>
+       <div class="meta">inputSchema: ${esc(JSON.stringify(t.inputSchema?.properties ?? t.input_schema ?? {}))}</div></div>`).join("");
+  } catch(e) { $("mcp-status").textContent = "❌ " + e.message; }
+});
+$("mcp-tool").addEventListener("change", () => {
+  $("mcp-args").value = $("mcp-tool").value === "greet" ? '{"name": "HelloAgents"}' : '{"expression": "15 * 23 + 45"}';
+});
+$("mcp-call").addEventListener("click", async () => {
+  try {
+    const d = await post("/api/mcp/call", {tool: $("mcp-tool").value, arguments: JSON.parse($("mcp-args").value)});
+    $("mcp-log").insertAdjacentHTML("afterbegin",
+      `<div class="pkt"><b>→ ${esc(d.tool)}(${esc(JSON.stringify(d.arguments))})</b>
+       <div style="color:var(--observation);margin-top:4px">← ${esc(d.result)}</div><div class="meta">${d.elapsed_ms}ms</div></div>`);
+  } catch(e) { $("mcp-log").insertAdjacentHTML("afterbegin", `<div class="pkt"><span class="badge no">${esc(e.message)}</span></div>`); }
+});
+
+/* ---------- A2A ---------- */
+$("a2a-start").addEventListener("click", async () => {
+  $("a2a-status").textContent = "⏳ 启动 Flask A2A 服务器...";
+  try {
+    const d = await post("/api/a2a/start", {});
+    $("a2a-status").textContent = "✅ 网络已启动";
+    $("a2a-agents").innerHTML = Object.entries(d.agents).map(([name, a]) => `
+      <div class="card" style="background:var(--panel2)"><h3>🤖 ${esc(name)}</h3>
+        <div style="font-size:12px;color:var(--muted)">${esc(a.info.description)}</div>
+        <div style="margin-top:8px">${a.info.skills.map(s=>`<span class="chip">⚡ ${esc(s)}</span>`).join("")}</div>
+        <div class="meta" style="font-size:11px;color:var(--muted);margin-top:8px">AgentCard: ${esc(a.url)} · v${esc(a.info.version)} · ${esc(JSON.stringify(a.info.capabilities))}</div></div>`).join("");
+  } catch(e) { $("a2a-status").textContent = "❌ " + e.message; }
+});
+$("a2a-ask").addEventListener("click", async () => {
+  try {
+    const d = await post("/api/a2a/ask", {agent: $("a2a-agent").value, question: $("a2a-q").value, skill: $("a2a-skill").value || null});
+    $("a2a-log").insertAdjacentHTML("afterbegin",
+      `<div class="pkt"><b>me → ${esc(d.agent)}</b> <span class="badge ok">skill: ${esc(d.skill)}</span>
+       <div style="margin-top:4px">${esc(d.question)}</div>
+       <div style="color:var(--observation);margin-top:4px">↩ ${esc(String(d.answer))}</div>
+       <div class="meta">${esc(d.server_url)} · ${d.elapsed_ms}ms</div></div>`);
+  } catch(e) { $("a2a-log").insertAdjacentHTML("afterbegin", `<div class="pkt"><span class="badge no">${esc(e.message)}</span></div>`); }
+});
+
+/* ---------- ANP ---------- */
+let anpGraph = null, anpHighlight = [];
+function drawANP() {
+  if (!anpGraph) return;
+  const svg = $("anp-svg"), W = 460, H = 300, cx = W/2, cy = H/2, R = Math.min(W,H)/2 - 45;
+  const nodes = anpGraph.nodes, pos = {};
+  nodes.forEach((n, i) => {
+    const a = (i / nodes.length) * Math.PI * 2 - Math.PI/2;
+    pos[n.id] = [cx + R*Math.cos(a), cy + R*Math.sin(a)];
+  });
+  let out = "";
+  for (const e of anpGraph.edges) {
+    const [x1,y1] = pos[e.from], [x2,y2] = pos[e.to];
+    const hot = anpHighlight.some((h,i) => anpHighlight[i+1] && ((h===e.from && anpHighlight[i+1]===e.to)));
+    out += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${hot?"#fbbf24":"#2b3a55"}" stroke-width="${hot?3:1.5}" marker-end="url(#arr)"/>`;
+  }
+  for (const n of nodes) {
+    const [x,y] = pos[n.id];
+    const hot = anpHighlight.includes(n.id);
+    out += `<circle cx="${x}" cy="${y}" r="17" fill="${hot?"#fbbf24":(n.metadata.role==="coordinator"?"#6366f1":"#1d2a44")}" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="${x}" y="${y+30}" text-anchor="middle">${esc(n.id)}</text>
+      <text x="${x}" y="${y+42}" text-anchor="middle" style="fill:#8fa3bf;font-size:9px">${esc(n.metadata.role||"")}</text>`;
+  }
+  svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2b3a55"/></marker></defs>` + out;
+  const s = anpGraph.stats;
+  $("anp-stats").textContent = `网络 ${s.network_id} · 节点 ${s.total_nodes}（活跃 ${s.active_nodes}）· 连接 ${s.total_connections}`;
+  const opts = nodes.map(n => `<option>${esc(n.id)}</option>`).join("");
+  ["anp-from","anp-to","anp-connect"].forEach(id => { const v = $(id).value; $(id).innerHTML = opts; if (v) $(id).value = v; });
+  if ($("anp-to").value === $("anp-from").value && nodes.length > 1) $("anp-to").selectedIndex = 1;
+}
+function renderANPLog(log) {
+  $("anp-log").innerHTML = log.slice().reverse().map(l =>
+    l.kind === "route"
+      ? `<div>📨 <b>${esc(l.from)} → ${esc(l.to)}</b>：${esc(l.message)}<br/><span style="color:${l.path?"var(--observation)":"var(--error)"}">${l.path?"路径 "+l.path.join(" → "):"不可达"}</span> <span style="color:var(--muted)">${l.ts}</span></div>`
+      : `<div>📢 <b>${esc(l.from)}</b> 广播：${esc(l.message)}<br/><span style="color:var(--observation)">接收者 ${(l.receivers||[]).join(", ")||"无"}</span> <span style="color:var(--muted)">${l.ts}</span></div>`).join("");
+}
+async function loadANP() {
+  try {
+    const d = await api("/api/anp/network");
+    anpGraph = d.graph; drawANP(); renderANPLog(d.log);
+    renderANPServices(d.services);
+  } catch(e) { $("anp-status").textContent = "❌ " + e.message; }
+}
+function renderANPServices(services) {
+  $("anp-services").innerHTML = `<table><tr><th>服务</th><th>类型</th><th>端点</th><th>能力</th></tr>` +
+    services.map(s => `<tr><td>${esc(s.service_name)}</td><td><span class="badge ok">${esc(s.service_type)}</span></td>
+      <td style="font-family:monospace;font-size:11px">${esc(s.endpoint)}</td><td>${s.capabilities.map(c=>`<span class="chip" style="padding:2px 8px">${esc(c)}</span>`).join("")}</td></tr>`).join("") + "</table>";
+}
+$("anp-route").addEventListener("click", async () => {
+  try {
+    const d = await post("/api/anp/route", {from_node: $("anp-from").value, to_node: $("anp-to").value, message: $("anp-msg").value});
+    anpHighlight = d.path || []; drawANP(); renderANPLog(d.log);
+    $("anp-status").textContent = d.path ? "✅ 路由成功: " + d.path.join(" → ") : "⚠️ 无可达路径";
+  } catch(e) { $("anp-status").textContent = "❌ " + e.message; }
+});
+$("anp-broadcast").addEventListener("click", async () => {
+  try {
+    const d = await post("/api/anp/broadcast", {from_node: $("anp-from").value, message: $("anp-msg").value});
+    anpHighlight = [$("anp-from").value, ...d.receivers]; drawANP(); renderANPLog(d.log);
+    $("anp-status").textContent = "📢 广播到: " + (d.receivers.join(", ") || "无接收者");
+  } catch(e) { $("anp-status").textContent = "❌ " + e.message; }
+});
+$("anp-add").addEventListener("click", async () => {
+  const id = $("anp-newnode").value.trim(); if (!id) return;
+  try {
+    const d = await post("/api/anp/add_node", {node_id: id, connect_to: $("anp-connect").value || null});
+    anpGraph = d.graph; anpHighlight = []; drawANP(); $("anp-newnode").value = "";
+  } catch(e) { $("anp-status").textContent = "❌ " + e.message; }
+});
+$("anp-discover").addEventListener("click", async () => {
+  const d = await api("/api/anp/discover?service_type=" + encodeURIComponent($("anp-svc-type").value));
+  renderANPServices(d.services);
+});
+loadANP();
+
+/* ---------- RL ---------- */
+async function loadRLInfo() {
+  try {
+    const d = await api("/api/rl/info");
+    $("rl-trl").className = "badge " + (d.trl_available ? "ok" : "warn");
+    $("rl-trl").textContent = d.trl_available ? "TRL 已安装 · 可真实训练" : "TRL 未安装 · 曲线为模拟演示";
+    $("rl-config").textContent = JSON.stringify(d.default_config, null, 2);
+  } catch(e) { console.error(e); }
+}
+loadRLInfo();
+$("rl-eval").addEventListener("click", async () => {
+  try {
+    const truths = $("rl-truths").value.split("\n").map(s=>s.trim()).filter(Boolean);
+    let comps = $("rl-completions").value.split("\n\n").map(s=>s.trim()).filter(Boolean);
+    if (comps.length !== truths.length) comps = $("rl-completions").value.split("\n").map(s=>s.trim()).filter(Boolean);
+    if (comps.length !== truths.length)
+      throw new Error(`样本数不匹配：输出 ${comps.length} 条 vs 答案 ${truths.length} 条（多行样本请用空行分隔）`);
+    const d = await post("/api/rl/reward", {completions: comps, ground_truths: truths,
+      length_penalty: $("rl-lenpen").checked, step_bonus: $("rl-stepbonus").checked});
+    $("rl-reward-out").innerHTML =
+      `<div class="chip">平均奖励 ${d.stats.mean_reward?.toFixed?.(3) ?? d.stats.mean_reward}</div>` +
+      `<table style="margin-top:8px"><tr><th>输出</th><th>提取答案</th><th>标准答案</th><th>基础</th><th>最终奖励</th></tr>` +
+      d.samples.map(s => `<tr><td style="max-width:220px">${esc(s.completion.length>60?s.completion.slice(0,60)+"…":s.completion)}</td>
+        <td>${esc(s.extracted??"∅")}</td><td>${esc(s.ground_truth)}</td>
+        <td>${s.base_reward}</td><td><b style="color:${s.final_reward>=1?"var(--observation)":s.final_reward>0?"var(--final)":"var(--error)"}">${s.final_reward}</b></td></tr>`).join("") + "</table>";
+  } catch(e) { $("rl-reward-out").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+});
+let rlES = null, rlData = [];
+function drawRLChart() {
+  const cv = $("rl-chart"), ctx = cv.getContext("2d");
+  cv.width = cv.clientWidth * 2; cv.height = 480;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if (rlData.length < 2) return;
+  const W = cv.width, H = cv.height, pad = 40;
+  const maxLoss = Math.max(...rlData.map(d=>d.loss), 0.1);
+  const series = [
+    {key:"reward_mean", color:"#34d399", max:1},
+    {key:"loss", color:"#f87171", max:maxLoss},
+    {key:"kl", color:"#fbbf24", max:Math.max(...rlData.map(d=>d.kl), 0.05)},
+  ];
+  ctx.strokeStyle = "#2b3a55"; ctx.lineWidth = 1;
+  for (let i=0;i<=4;i++){ const y=pad+(H-2*pad)*i/4; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-10,y); ctx.stroke(); }
+  for (const s of series) {
+    ctx.strokeStyle = s.color; ctx.lineWidth = 3; ctx.beginPath();
+    rlData.forEach((d,i) => {
+      const x = pad + (W-pad-10) * i/(rlData.length-1);
+      const y = H - pad - (H-2*pad) * (d[s.key]/s.max);
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#8fa3bf"; ctx.font = "20px sans-serif";
+  ctx.fillText("step " + rlData[rlData.length-1].step, W-150, H-10);
+}
+$("rl-train").addEventListener("click", () => {
+  if (rlES) rlES.close();
+  rlData = [];
+  $("rl-train").disabled = true;
+  $("rl-train-status").textContent = "⏳ 训练中...";
+  rlES = new EventSource(`/api/rl/train?algo=${$("rl-algo").value}&steps=${parseInt($("rl-steps").value)||40}`);
+  rlES.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.done) {
+      $("rl-train-status").textContent = "✅ 训练结束" + (d.simulated ? "（模拟曲线 — 安装 trl 后可真实训练）" : "");
+      rlES.close(); $("rl-train").disabled = false; return;
     }
+    rlData.push(d); drawRLChart();
+    $("rl-train-status").textContent = `⏳ ${d.algo} step ${d.step}/${d.total} · reward=${d.reward_mean} · loss=${d.loss} · KL=${d.kl}` + (d.simulated?" · 模拟":"");
+  };
+  rlES.onerror = () => { rlES.close(); $("rl-train").disabled = false; };
+});
 
-  </script>
+/* ---------- Eval ---------- */
+async function loadEvalInfo() {
+  try {
+    const d = await api("/api/eval/info");
+    $("eval-benchmarks").innerHTML = d.benchmarks.map(b => `
+      <div class="card"><h3>${esc(b.name)} <span style="color:var(--muted);font-weight:400;font-size:11px">${esc(b.full)}</span></h3>
+        <span class="badge ${b.available?"ok":"no"}">${b.available?"可用":"缺依赖"}</span>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">${esc(b.desc)}</div></div>`).join("");
+  } catch(e) { console.error(e); }
+}
+loadEvalInfo();
+function metricBar(label, value, pct) {
+  return `<div style="margin-bottom:8px"><div style="font-size:12px;margin-bottom:3px">${label} · <b>${value}</b></div>
+    <div class="bar-wrap"><div class="bar" style="width:${Math.round(pct*100)}%"></div></div></div>`;
+}
+$("eval-bfcl").addEventListener("click", async () => {
+  $("eval-bfcl-out").innerHTML = "⏳";
+  try {
+    const d = await api("/api/eval/bfcl_demo");
+    const m = d.metrics;
+    let html = `<span class="badge warn">演示数据 · BFCLMetrics 真实计算</span><div style="margin-top:10px">`;
+    html += metricBar("准确率 accuracy", (m.accuracy*100).toFixed(1)+"%", m.accuracy);
+    html += metricBar("平均分 average_score", m.average_score.toFixed(2), m.average_score);
+    html += `</div><div style="font-size:12px;color:var(--muted)">样本 ${m.total_samples} · 成功 ${m.success_count} · 平均耗时 ${m.average_execution_time.toFixed(1)}s · 函数调用 ${m.function_call_stats.total_function_calls} 次（${m.function_call_stats.unique_functions} 个函数）</div>`;
+    html += `<table style="margin-top:8px"><tr><th>类别</th><th>样本</th><th>准确率</th><th>平均分</th></tr>` +
+      Object.entries(m.category_metrics).map(([c,s]) =>
+        `<tr><td>${esc(c)}</td><td>${s.total}</td><td>${(s.accuracy*100).toFixed(0)}%</td><td>${s.average_score.toFixed(2)}</td></tr>`).join("") + "</table>";
+    $("eval-bfcl-out").innerHTML = html;
+  } catch(e) { $("eval-bfcl-out").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+});
+$("eval-gaia").addEventListener("click", async () => {
+  $("eval-gaia-out").innerHTML = "⏳";
+  try {
+    const d = await api("/api/eval/gaia_demo");
+    const m = d.metrics;
+    let html = `<span class="badge warn">演示数据 · GAIAMetrics 真实计算</span><div style="margin-top:10px">`;
+    const em = m.exact_match_rate ?? m.overall_exact_match ?? 0, pm = m.partial_match_rate ?? 0;
+    html += metricBar("精确匹配 exact_match", (em*100).toFixed(1)+"%", em);
+    html += metricBar("部分匹配 partial_match", (pm*100).toFixed(1)+"%", pm);
+    html += `</div>`;
+    const lvl = m.level_metrics || {};
+    if (Object.keys(lvl).length) {
+      html += `<table style="margin-top:8px"><tr><th>难度</th><th>样本</th><th>精确匹配</th><th>平均分</th></tr>` +
+        Object.entries(lvl).map(([l,s]) =>
+          `<tr><td>Level ${esc(l)}</td><td>${s.total ?? s.count ?? "-"}</td><td>${((s.exact_match_rate??0)*100).toFixed(0)}%</td><td>${(s.average_score??0).toFixed(2)}</td></tr>`).join("") + "</table>";
+    }
+    html += `<pre style="margin-top:8px;max-height:160px">${esc(JSON.stringify(m, null, 2))}</pre>`;
+    $("eval-gaia-out").innerHTML = html;
+  } catch(e) { $("eval-gaia-out").innerHTML = `<span class="badge no">${esc(e.message)}</span>`; }
+});
+</script>
 </body>
 </html>
