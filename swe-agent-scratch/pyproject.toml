@@ -1,0 +1,37 @@
+[project]
+name = "sweagent0"
+version = "0.1.0"
+description = "从零实现的 SWE Agent：自主修 Bug 的软件工程智能体，以 SWE-bench Lite 为评测基准"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.30",
+    "pyyaml>=6.0",
+    "tenacity>=8.2",
+]
+
+[project.optional-dependencies]
+eval = [
+    "datasets>=2.19",
+    "swebench>=2.1",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+sweagent0 = "sweagent0.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

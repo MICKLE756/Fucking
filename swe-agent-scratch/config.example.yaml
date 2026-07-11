@@ -1,0 +1,14 @@
+# sweagent0 运行配置示例（国内中转 API 场景）
+model:
+  model_name: "gpt-4o-mini"      # 或中转提供的模型名
+  base_url: null                  # 中转地址，如 https://your-relay.com/v1
+  api_key_env: "OPENAI_API_KEY"
+  temperature: 0.0
+  max_tokens: 4096
+
+agent:
+  max_steps: 50
+  max_consecutive_format_errors: 5
+  context_token_budget: 96000
+  max_observation_chars: 16000
+  cost_limit_usd: 2.0
