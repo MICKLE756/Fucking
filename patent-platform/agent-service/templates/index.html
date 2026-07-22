@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>专利需求解析 Agent</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f0f2f5; height: 100vh; display: flex; flex-direction: column;
+  }
+
+  /* 顶栏 */
+  .header {
+    background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header-actions button {
+    background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3);
+    padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-left: 8px;
+    transition: background .2s;
+  }
+  .header-actions button:hover { background: rgba(255,255,255,.35); }
+
+  /* 主体 */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* 左侧聊天区 */
+  .chat-panel { flex: 1; display: flex; flex-direction: column; background: #fff; }
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .msg { max-width: 78%; padding: 12px 16px; border-radius: 12px; line-height: 1.6; font-size: 14px;
+         word-wrap: break-word; white-space: pre-wrap; position: relative; }
+  .msg-user {
+    align-self: flex-end; background: #1a73e8; color: #fff; border-bottom-right-radius: 4px;
+  }
+  .msg-agent {
+    align-self: flex-start; background: #f1f3f4; color: #1a1a1a; border-bottom-left-radius: 4px;
+  }
+  .msg-system {
+    align-self: center; background: #fff8e1; color: #795548; font-size: 12px;
+    padding: 6px 14px; border-radius: 20px;
+  }
+  .msg-label {
+    font-size: 11px; margin-bottom: 4px; opacity: .6;
+  }
+  .msg-suggestions {
+    margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .msg-suggestions button {
+    background: #e8f0fe; color: #1a73e8; border: 1px solid #c5d8f8; border-radius: 16px;
+    padding: 4px 12px; font-size: 12px; cursor: pointer; transition: background .2s;
+  }
+  .msg-suggestions button:hover { background: #d2e3fc; }
+
+  /* 输入区 */
+  .chat-input-area {
+    padding: 16px 24px; border-top: 1px solid #e0e0e0; display: flex; gap: 10px; background: #fafafa;
+  }
+  .chat-input-area input {
+    flex: 1; padding: 10px 16px; border: 1px solid #ddd; border-radius: 24px; font-size: 14px;
+    outline: none; transition: border-color .2s;
+  }
+  .chat-input-area input:focus { border-color: #1a73e8; }
+  .chat-input-area button {
+    background: #1a73e8; color: #fff; border: none; border-radius: 24px; padding: 10px 24px;
+    font-size: 14px; cursor: pointer; transition: background .2s;
+  }
+  .chat-input-area button:hover { background: #1558b0; }
+  .chat-input-area button:disabled { background: #aaa; cursor: not-allowed; }
+
+  /* 右侧状态面板 */
+  .state-panel {
+    width: 320px; background: #fafbfc; border-left: 1px solid #e0e0e0;
+    overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .state-panel h2 { font-size: 15px; color: #333; margin-bottom: 4px; }
+  .state-card {
+    background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .state-card h3 {
+    font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;
+  }
+  .state-item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .state-item .label { color: #666; }
+  .state-item .value { color: #1a1a1a; font-weight: 500; max-width: 180px; text-align: right; word-break: break-all; }
+  .phase-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+  }
+  .phase-idle { background: #e0e0e0; color: #666; }
+  .phase-recognized, .phase-evaluating { background: #fff3e0; color: #e65100; }
+  .phase-clarifying { background: #e3f2fd; color: #1565c0; }
+  .phase-confirming { background: #f3e5f5; color: #7b1fa2; }
+  .phase-executing { background: #e8f5e9; color: #2e7d32; }
+  .phase-responding { background: #e8f5e9; color: #1b5e20; }
+  .phase-feedback { background: #fce4ec; color: #c62828; }
+
+  .typing-indicator { display: none; align-self: flex-start; padding: 12px 16px; background: #f1f3f4; border-radius: 12px; }
+  .typing-indicator.active { display: flex; gap: 4px; align-items: center; }
+  .typing-dot {
+    width: 8px; height: 8px; background: #999; border-radius: 50%;
+    animation: typing .8s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(2) { animation-delay: .15s; }
+  .typing-dot:nth-child(3) { animation-delay: .3s; }
+  @keyframes typing { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+  @media (max-width: 768px) {
+    .state-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>&#x1F50D; 专利需求解析 Agent</h1>
+  <div class="header-actions">
+    <button onclick="toggleState()">状态面板</button>
+    <button onclick="resetChat()">重置会话</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="chat-panel">
+    <div class="chat-messages" id="chatMessages">
+      <div class="msg msg-agent">
+        <div class="msg-label">Agent</div>
+        您好！我是专利技术检索助手。请告诉我您的技术需求，我将帮您查找相关专利。<br><br>
+        例如：您可以描述需要解决的技术问题、应用场景或性能要求。
+        <div class="msg-suggestions">
+          <button onclick="sendQuick('我想找一种耐高温的不粘锅涂层材料相关的专利')">耐高温涂层专利</button>
+          <button onclick="sendQuick('帮我查一下CN202310001234.5这个专利的详情')">查专利详情</button>
+          <button onclick="sendQuick('帮我组合一套完整的涂层解决方案')">专利组合方案</button>
+        </div>
+      </div>
+      <div class="typing-indicator" id="typingIndicator">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <input id="userInput" type="text" placeholder="输入您的需求..." autocomplete="off"
+             onkeydown="if(event.key==='Enter')sendMessage()">
+      <button id="sendBtn" onclick="sendMessage()">发送</button>
+    </div>
+  </div>
+
+  <div class="state-panel" id="statePanel">
+    <h2>会话状态</h2>
+    <div class="state-card">
+      <h3>流程阶段</h3>
+      <div style="text-align:center;padding:4px 0">
+        <span class="phase-badge phase-idle" id="phaseBadge">idle</span>
+      </div>
+    </div>
+    <div class="state-card">
+      <h3>意图识别</h3>
+      <div class="state-item"><span class="label">意图类型</span><span class="value" id="stIntent">-</span></div>
+      <div class="state-item"><span class="label">置信度</span><span class="value" id="stConfidence">-</span></div>
+    </div>
+    <div class="state-card">
+      <h3>需求槽位</h3>
+      <div class="state-item"><span class="label">技术领域</span><span class="value" id="stDomain">-</span></div>
+      <div class="state-item"><span class="label">核心问题</span><span class="value" id="stProblem">-</span></div>
+      <div class="state-item"><span class="label">约束条件</span><span class="value" id="stConstraints">-</span></div>
+    </div>
+    <div class="state-card">
+      <h3>交互状态</h3>
+      <div class="state-item"><span class="label">追问轮次</span><span class="value" id="stClarify">0 / 3</span></div>
+      <div class="state-item"><span class="label">已确认</span><span class="value" id="stConfirmed">否</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const typingIndicator = document.getElementById('typingIndicator');
+let sending = false;
+
+function addMessage(role, text, suggestions) {
+  const div = document.createElement('div');
+  div.className = 'msg msg-' + role;
+  let html = '<div class="msg-label">' + (role === 'user' ? '您' : 'Agent') + '</div>';
+  html += escapeHtml(text).replace(/\n/g, '<br>');
+  if (suggestions && suggestions.length) {
+    html += '<div class="msg-suggestions">';
+    suggestions.forEach(s => {
+      html += '<button onclick="sendQuick(\'' + s.replace(/'/g, "\\'") + '\')">' + escapeHtml(s) + '</button>';
+    });
+    html += '</div>';
+  }
+  div.innerHTML = html;
+  chatMessages.insertBefore(div, typingIndicator);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function escapeHtml(t) {
+  const d = document.createElement('div'); d.textContent = t; return d.innerHTML;
+}
+
+function updateState(st) {
+  if (!st) return;
+  const badge = document.getElementById('phaseBadge');
+  badge.textContent = st.phase || 'idle';
+  badge.className = 'phase-badge phase-' + (st.phase || 'idle');
+  document.getElementById('stIntent').textContent = (st.intent_level1 || '-') + (st.intent_level2 && st.intent_level2.length ? ' / ' + st.intent_level2.join(', ') : '');
+  document.getElementById('stConfidence').textContent = '-';
+  document.getElementById('stDomain').textContent = st.tech_domain || '-';
+  document.getElementById('stProblem').textContent = st.core_problem || '-';
+  const c = st.constraints;
+  document.getElementById('stConstraints').textContent = (c && Object.keys(c).length) ? JSON.stringify(c, null, 0) : '-';
+  document.getElementById('stClarify').textContent = (st.clarify_round || 0) + ' / ' + (st.max_clarify_round || 3);
+  // 显示操作提示
+  if (st.request) {
+    addMessage('agent', st.request);
+  }
+  document.getElementById('stConfirmed').textContent = st.confirmed ? '是' : '否';
+}
+
+async function sendMessage() {
+  const text = userInput.value.trim();
+  if (!text || sending) return;
+  sending = true;
+  sendBtn.disabled = true;
+  userInput.value = '';
+  addMessage('user', text);
+  typingIndicator.classList.add('active');
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text})
+    });
+    const data = await res.json();
+    typingIndicator.classList.remove('active');
+    if (data.error) { addMessage('agent', '错误: ' + data.error); }
+    else {
+      // 操作提示
+      if (data.request) { addMessage('agent', data.request); }
+      // 主回复
+      var suggestions = [];
+      if (data.state && data.state.phase === 'confirming') suggestions = ['确认，请继续', '需要修改条件'];
+      else if (data.state && data.state.phase === 'responding') suggestions = ['查看专利详情', '生成 SWOT 分析', '组合专利方案', '缩小范围重新检索'];
+      if (data.message) addMessage('agent', data.message, suggestions);
+      if (data.state) updateState(data.state);
+    }
+  } catch(e) {
+    typingIndicator.classList.remove('active');
+    addMessage('agent', '网络错误: ' + e.message);
+  }
+  sending = false;
+  sendBtn.disabled = false;
+  userInput.focus();
+}
+
+function sendQuick(text) { userInput.value = text; sendMessage(); }
+
+async function resetChat() {
+  await fetch('/reset', {method: 'POST'});
+  chatMessages.querySelectorAll('.msg').forEach(el => el.remove());
+  addMessage('agent', '会话已重置。请告诉我您的技术需求。');
+  updateState({phase:'idle', intent_type:'', tech_domain:'', core_problem:'', constraints:{}, clarify_round:0, max_clarify_round:3, confirmed:false});
+}
+
+function toggleState() {
+  const p = document.getElementById('statePanel');
+  p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>
