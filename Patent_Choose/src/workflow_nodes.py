@@ -619,17 +619,23 @@ class PatentWorkflow:
         self.state["user_input"] = text
         self.state["_response"] = ""
         self.state["_request"] = ""
+        self.state["_tool_result"] = {}
         self.state["history"].append({"role": "user", "content": text})
 
         # 执行工作流
         self.state = self.engine.run(self.state)
 
-        # 构建响应
-        response = {}
-        if self.state["_request"]:
-            response["request"] = self.state["_request"]
+        # 构建响应：固定协议，专利结果独立返回（不要求调用方从自然语言解析）
+        tool_result = self.state.get("_tool_result") or {}
+        patents = tool_result.get("patents", []) if isinstance(tool_result, dict) else []
+
+        response = {
+            "message": self.state.get("_response", ""),
+            "request": self.state.get("_request", ""),
+            "phase": self.state.get("phase", ""),
+            "patents": patents,
+        }
         if self.state["_response"]:
-            response["message"] = self.state["_response"]
             self.state["history"].append({"role": "assistant", "content": self.state["_response"]})
 
         return response
