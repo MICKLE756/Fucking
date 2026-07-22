@@ -479,8 +479,13 @@ python app.py
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/` | GET | 首页（重定向到聊天界面） |
-| `/chat` | POST | 处理用户消息 `{message: str}` → `{message: str, request?: str, state: dict}` |
+| `/chat` | POST | 自带网页接口（Cookie 会话）`{message: str}` → `{message, request, phase, patents, state}` |
+| `/orchestrator/chat` | POST | 服务间接口（显式会话）`{session_id, user_id, message}` → `{session_id, message, request, phase, patents}` |
 | `/reset` | POST | 重置会话 |
+
+`/orchestrator/chat` 供 Spring Boot 等编排层调用：`session_id` 由调用方生成（建议 `用户ID:conversationId`），
+专利结果以结构化 `patents` 数组独立返回（snake_case，由调用方转 camelCase），参数错误统一返回
+`{code: "INVALID_PARAM", message, detail}`，检索故障时降级返回 `phase = "degraded"`。
 
 ---
 
