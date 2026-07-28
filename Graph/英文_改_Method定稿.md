@@ -18,7 +18,7 @@ where $y_{ij}=1$ iff $u_j$ is a cause of the emotion expressed in $u_i$. Two aux
 
 The encoder (Section 3.3) maps the conversation to contextualized utterance representations and forms a representation $h_{ij}^{\mathrm{pair}}$ for every candidate pair. A soft candidate gate (Section 3.4) concentrates the more expensive computations on the most promising pairs.
 
-For these gated pairs we obtain two complementary forms of causal-style evidence—perturbation-based necessity from the model itself (Section 3.5) and a distilled textual *counterfactual* vector from an LLM (Section 3.7)—and add a bounded positional prior (Section 3.6) at the score level. A complementarity-aware gating network (Section 3.8) fuses the pair representation with the two evidence vectors, conditioning on the model's confidence, the LLM's reliability, and their agreement so that each source compensates the other's weakness, to produce the final pair probability. Training combines the pair objective, the auxiliary emotion/cause objectives, and the evidence-related objectives (Section 3.9).
+For these gated pairs we obtain two complementary forms of **evidence signals**—perturbation-based necessity from the model itself (Section 3.5) and a distilled *counterfactual-style* textual judgement vector from an LLM (Section 3.7)—and add a bounded positional prior (Section 3.6) at the score level. The perturbation sensitivity and the positional prior together constitute *model-internal* evidence, while the distilled LLM vector supplies *external* evidence; the two are complementary. A complementarity-aware gating network (Section 3.8) fuses the pair representation with the two evidence vectors, conditioning on the model's confidence, the LLM's reliability, and their agreement so that each source compensates the other's weakness, to produce the final pair probability. Training combines the pair objective, the auxiliary emotion/cause objectives, and the evidence-related objectives (Section 3.9).
 
 ## 3.3 Relation-Aware Multimodal Encoder
 
@@ -101,7 +101,7 @@ Because the textual stream is the backbone of the encoder, this representation-l
 $$
 \tilde H^{-m}=\mathrm{Enc}\!\left(\{h_i^{0}\}\,\big|\,x^{m}\!\leftarrow b^{m}\right),\qquad m\in\{a,v\}.
 $$
-This costs only two extra encodings per conversation and is shared by all of its candidate pairs. To make the modality perturbation *pair-local* and directly comparable to the cause-necessity term—which also replaces only the cause side—we form the counterfactual pair representation by keeping the original emotion representation $\tilde h_i$ and using the perturbed cause representation $\tilde h_j^{-m}$ from $\tilde H^{-m}$:
+This costs only two extra encodings per conversation and is shared by all of its candidate pairs. To make the modality perturbation *pair-local* and directly comparable to the cause-necessity term—which also replaces only the cause side—we form the perturbed (counterfactual-style) pair representation by keeping the original emotion representation $\tilde h_i$ and using the perturbed cause representation $\tilde h_j^{-m}$ from $\tilde H^{-m}$:
 $$
 \Delta_{ij}^{m}=s_{ij}-f\!\left(\big[\tilde h_i;\,\tilde h_j^{-m};\,\tilde h_i\odot\tilde h_j^{-m};\,|\tilde h_i-\tilde h_j^{-m}|\big]\right),
 $$
@@ -136,11 +136,11 @@ b_{ij}^{\mathrm{pos}}=\eta\cdot\tanh\!\big(\psi(d_{ij})\big)\in(-\eta,\eta),
 $$
 The amplitude $\eta$ caps the prior and $\mathcal{L}_{\mathrm{pos}}$ further discourages it from dominating, so position can refine but not override the semantic evidence. The prior enters the final logit in Section 3.8.
 
-## 3.7 LLM-Guided Counterfactual Evidence Distillation
+## 3.7 LLM-Guided Textual Reasoning Evidence Distillation
 
-LLMs reason effectively over text but cannot perceive raw acoustic or visual signals; we therefore restrict their role to text-grounded reasoning and obtain modality evidence solely from Section 3.5. Querying an LLM at inference is also impractical, so its reasoning is distilled offline into a lightweight student. The necessity evidence of Section 3.5 is a *model-internal* perturbation signal—precise about what the current model relies on, but semantically shallow and noisy early in training. We therefore ask the LLM for a deliberately *complementary* signal: a textual **counterfactual** judgement of the cause–effect relation, which is semantically informed but only weakly supervised. The two are reconciled by the fusion of Section 3.8.
+LLMs reason effectively over text but cannot perceive raw acoustic or visual signals; we therefore restrict their role to text-grounded reasoning and obtain modality evidence solely from Section 3.5. Querying an LLM at inference is also impractical, so its reasoning is distilled offline into a lightweight student. The necessity evidence of Section 3.5 is a *model-internal* perturbation signal—precise about what the current model relies on, but semantically shallow and noisy early in training. We therefore ask the LLM for a deliberately *complementary* signal: a **counterfactual-style** textual judgement of the cause–effect relation—not a formal counterfactual identification—which is semantically informed but only weakly supervised. The two are reconciled by the fusion of Section 3.8.
 
-**Counterfactual reasoning evidence.** For a candidate pair, a fixed structured prompt asks the LLM to reason counterfactually about an intervention on the candidate cause and to return four calibrated scalars in $[0,1]$:
+**Counterfactual reasoning evidence.** For a candidate pair, a fixed structured prompt asks the LLM counterfactual-style questions about the candidate cause (occlusion-style prompting) and requests four calibrated scalars in $[0,1]$:
 $s_{ij}^{\mathrm{nec}}$ (*necessity*), how likely the emotion in $u_i$ would **disappear or weaken** had $u_j$ not occurred (or been neutral);
 $s_{ij}^{\mathrm{suf}}$ (*sufficiency*), how likely $u_j$ **alone** suffices to elicit that emotion;
 $s_{ij}^{\mathrm{dir}}$ (*direction*), whether $u_j$ causes $u_i$ ($1$) rather than the reverse or a mere reaction ($0$);
