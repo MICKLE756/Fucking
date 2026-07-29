@@ -12,7 +12,8 @@ vLLM 单独用 `conda activate /root/autodl-tmp/conda_dirs/vllm_env`。
 
 ```
 Graph/
-├── main.py                 # 训练 + 评估入口（一条命令跑全程）
+├── main.py                 # 训练 + 评估入口（ECF 数据集，一条命令跑全程）
+├── main_conv.py            # ConvECPE (IEMOCAP) 数据集入口（见 §7）
 ├── requirements.txt
 ├── src/
 │   ├── config.yaml         # 主配置（改一行 llm_anno_path 即可开/关 LLM 蒸馏）
@@ -27,6 +28,10 @@ Graph/
 │   ├── annotate_llm_test.py# 【离线·体检】抽样标注 + 对照 gold 出质量报告
 │   ├── calibrate_anno.py   # 【离线·可选】看偏差 / 朝 gold 软校正
 │   └── build_selfcause_sft.py # 【进阶·可选】从 gold 生成自环 SFT 微调数据 (LLaMA-Factory)
+├── ConvECPE_src/           # 方法在 ConvECPE (IEMOCAP) 上的适配（loader/config 不同，方法组件与 src 一致）
+│   ├── config.yaml         # ConvECPE 专用配置（audio 100d / visual 512d、路径相对 Graph/）
+│   └── README.md           # 与 src 的差异说明 + 已知约定
+├── Dataset/                # ConvECPE 数据（IEMOCAP_emotion_cause_features.pkl，已入库）
 ├── environment.yml         # conda 环境（可复现）
 ├── requirements.txt        # 精简后的依赖（按真实 import）
 ├── REPRODUCE.md            # 复现/消融指南
@@ -171,9 +176,29 @@ python scripts/aggregate_results.py results/logs -o results/ablation_table
 
 ---
 
+## 7. ConvECPE (IEMOCAP) 数据集
+
+方法在第二个数据集 **ConvECPE**（[JointEC](https://github.com/Maxwe11y/JointEC) 发布的 IEMOCAP 情绪-原因标注）上的运行入口是 `main_conv.py`，代码在 `ConvECPE_src/`：
+
+```bash
+python main_conv.py                          # 完整方法（组件默认全开）
+python main_conv.py --seed 0                 # 固定种子
+python main_conv.py --set use_method=no      # 旧基线通路对照
+python main_conv.py --set use_necessity=no   # 消融示例（开关同 §6b）
+```
+
+要点：
+- 数据就是仓库里的 `Dataset/IEMOCAP_emotion_cause_features.pkl`，**无需额外下载**；首次运行会在 `preprocessed_convecpe/` 生成缓存。
+- 配置在 `ConvECPE_src/config.yaml`（audio 100d / visual 512d、6 类情绪、BERT 默认从 HuggingFace 拉 `bert-base-cased`，可 `--set bert_path=...` 指到本地权重）。
+- 官方只有 train/test 划分；从 train 以固定种子划出 10% 作验证集，沿用 `eval_threshold_on: valid` 的无泄漏评估协议。
+- §2–§5 的 LLM 离线标注流程是 **ECF 专用**（standalone 脚本读 train.txt）；ConvECPE 默认 `llm_anno_path: null` 关蒸馏数据侧，其余方法组件（自环修复/必要性/位置先验/融合）全部生效。
+- 与 src 的完整差异与已知约定见 [`ConvECPE_src/README.md`](ConvECPE_src/README.md)。
+
+---
+
 ## 一句话流程
 
-**自测 →（抽样体检）→ 全量标注 →（可选校正）→ 改一行 config → `python main.py`**
+**自测 →（抽样体检）→ 全量标注 →（可选校正）→ 改一行 config → `python main.py`**（ConvECPE 则直接 `python main_conv.py`）
 
 投稿额外两步：**默认 `eval_threshold_on: valid` 重跑主表 → `scripts/run_ablations.sh` 出消融表（多种子）**。
 

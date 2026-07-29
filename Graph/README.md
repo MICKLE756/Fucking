@@ -18,15 +18,18 @@ conda activate hilo
 
 ## Configuration
 
-The configurations for the model and training process are stored in `src/config.yaml`. You can modify this file to adjust the settings.
+The configurations for the model and training process are stored in `src/config.yaml` (ECF) and `ConvECPE_src/config.yaml` (ConvECPE/IEMOCAP). You can modify these files to adjust the settings.
 
 ## Data
-The dataset is located in data/dataset. Please follow the instructions in [data/dataset/README.md](data/dataset/README.md) to download the audio and video features, and place them in the data/dataset directory.
+- **ECF**: located in data/dataset. Please follow the instructions in [data/dataset/README.md](data/dataset/README.md) to download the audio and video features, and place them in the data/dataset directory.
+- **ConvECPE (IEMOCAP)**: `Dataset/IEMOCAP_emotion_cause_features.pkl` is included in the repo (from [JointEC](https://github.com/Maxwe11y/JointEC)); no extra download needed.
 
 
 ## Usage
-You can run the following command to train `&` evaluate the model:  
-`python main.py`
+You can run the following command to train `&` evaluate the model:
+
+- ECF dataset: `python main.py`
+- ConvECPE (IEMOCAP) dataset: `python main_conv.py` (data ships with the repo in `Dataset/`; see [ConvECPE_src/README.md](ConvECPE_src/README.md))
 
 ## Citation
 If you use this code in your research, please cite our paper:
