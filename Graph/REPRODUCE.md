@@ -131,3 +131,19 @@ Cause: Pre. ...  Rec. ...  F1 68.5678
 
 可直接填的模板见 [`results/TABLES.md`](results/TABLES.md)：包含
 （a）主表：本方法 vs baseline；（b）消融表：行标签与上面的开关一一对应。
+
+---
+
+## 9. 第二数据集：ConvECPE (IEMOCAP)
+
+方法在 ConvECPE（[JointEC](https://github.com/Maxwe11y/JointEC) 发布的 IEMOCAP 情绪-原因标注）上的复现走独立入口与配置，其余协议（确定性、验证集选阈值、消融开关）与上文一致：
+
+```bash
+python main_conv.py --seed 0                 # 完整方法
+python main_conv.py --seed 0 --set use_necessity=no   # 消融（开关同 §6）
+```
+
+- 数据：`Dataset/IEMOCAP_emotion_cause_features.pkl` 已随仓库提供，无需下载；首次运行生成 `preprocessed_convecpe/` 缓存。
+- 划分：官方 trainVid/testVid（120/31 篇）；从 train 以固定种子（13）划出 10% 作验证集用于阈值选择，无测试集泄漏。
+- LLM 离线标注管线（§`RUN.md` 2–5）为 ECF 专用；ConvECPE 默认 `llm_anno_path: null`。
+- 与 `src` 的完整差异及已知约定（下三角候选对使 ~5.8% 的"原因在情绪之后"金标对不可达等）见 [`ConvECPE_src/README.md`](ConvECPE_src/README.md)。
