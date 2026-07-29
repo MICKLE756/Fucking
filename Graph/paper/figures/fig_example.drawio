@@ -1,0 +1,58 @@
+<mxfile host="app.diagrams.net" agent="devin" version="24.7.7">
+  <diagram id="mecpe-example" name="MECPE example">
+    <mxGraphModel dx="800" dy="600" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="480" pageHeight="380" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- dashed dialogue container -->
+        <mxCell id="dlg" value="" style="rounded=1;fillColor=none;strokeColor=#888888;dashed=1;dashPattern=4 3;strokeWidth=1.5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="10" y="10" width="460" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Ross avatar -->
+        <mxCell id="rossAv" value="" style="shape=actor;fillColor=#7A92B8;strokeColor=#5A7298;" vertex="1" parent="1">
+          <mxGeometry x="24" y="22" width="46" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="rossName" value="Ross" style="text;html=1;align=center;fontSize=10;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="24" y="78" width="46" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- Ross bubble -->
+        <mxCell id="rossBub" value="&lt;b&gt;1-Ross:&lt;/b&gt; You got the clothes clean. Now that is the important part." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;align=left;verticalAlign=middle;spacing=8;fontSize=11;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="86" y="24" width="340" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Rachel bubble -->
+        <mxCell id="rachBub" value="&lt;b&gt;2-Rachel:&lt;/b&gt; Oh, I guess. Except everything looks like jammies now." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;align=left;verticalAlign=middle;spacing=8;fontSize=11;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="26" y="96" width="340" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Rachel avatar -->
+        <mxCell id="rachAv" value="" style="shape=actor;fillColor=#B87A8E;strokeColor=#98506A;" vertex="1" parent="1">
+          <mxGeometry x="386" y="94" width="46" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="rachName" value="Rachel" style="text;html=1;align=center;fontSize=10;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="386" y="150" width="46" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- Causes A card -->
+        <mxCell id="cardA" value="&lt;b&gt;Possible Emotional Causes A&lt;/b&gt;&lt;br&gt;Rachel looks sad because the &lt;u&gt;clothes in her hands look like jammies&lt;/u&gt;." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F4F4;strokeColor=#CCCCCC;align=left;verticalAlign=top;spacing=10;spacingTop=4;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="186" width="410" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="botA" value="" style="shape=actor;fillColor=#3D8FB5;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="14" y="200" width="36" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Causes B card -->
+        <mxCell id="cardB" value="&lt;b&gt;Possible Emotional Causes B&lt;/b&gt;&lt;br&gt;Rachel is disgusted because the &lt;u&gt;clothes look like jammies&lt;/u&gt;, and because of &lt;u&gt;Ross&#39;s insensitive comment&lt;/u&gt;." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F4F4;strokeColor=#CCCCCC;align=left;verticalAlign=top;spacing=10;spacingTop=4;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="272" width="410" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="botB" value="" style="shape=actor;fillColor=#B55A3D;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="14" y="292" width="36" height="40" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
