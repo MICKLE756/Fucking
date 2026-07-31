@@ -25,6 +25,17 @@ from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 
 from hello_agents.web.tracer import TracedReActAgent, TraceEvent, demo_trace
 from hello_agents.web.dashboard_api import router as dashboard_router
+from hello_agents.web.panels import (
+    _a2a_builder,
+    _anp_builder,
+    _context_builder,
+    _eval_builder,
+    _memory_items,
+    _mcp_builder,
+    _rl_builder,
+    build_overview,
+    sanitize,
+)
 
 load_dotenv()
 
@@ -108,6 +119,63 @@ def run(q: str = "请计算 15 * 23 + 45 等于多少？", mode: str = "demo") -
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _safe(builder, fallback):
+    """构建面板数据；失败时回退到 demo 数据，保证端点不 500。"""
+    try:
+        return sanitize(builder())
+    except Exception as exc:
+        data = dict(fallback)
+        data["source"] = "demo"
+        data["error"] = str(exc)
+        return sanitize(data)
+
+
+@app.get("/api/ultimate/overview")
+def ultimate_overview() -> JSONResponse:
+    return JSONResponse(_safe(build_overview, {"source": "demo", "version": "unknown", "modules": []}))
+
+
+@app.get("/api/ultimate/memory")
+def ultimate_memory() -> JSONResponse:
+    return JSONResponse(_safe(_memory_items, {"source": "demo"}))
+
+
+@app.get("/api/ultimate/context")
+def ultimate_context() -> JSONResponse:
+    return JSONResponse(_safe(_context_builder, {"source": "demo"}))
+
+
+@app.get("/api/ultimate/mcp")
+def ultimate_mcp() -> JSONResponse:
+    return JSONResponse(_safe(_mcp_builder, {"source": "demo"}))
+
+
+@app.get("/api/ultimate/a2a")
+def ultimate_a2a() -> JSONResponse:
+    return JSONResponse(_safe(_a2a_builder, {"source": "demo"}))
+
+
+@app.get("/api/ultimate/anp")
+def ultimate_anp() -> JSONResponse:
+    return JSONResponse(_safe(_anp_builder, {"source": "demo"}))
+
+
+@app.get("/api/ultimate/rl")
+def ultimate_rl() -> JSONResponse:
+    return JSONResponse(_safe(_rl_builder, {"source": "demo"}))
+
+
+@app.get("/api/ultimate/eval")
+def ultimate_eval() -> JSONResponse:
+    return JSONResponse(_safe(_eval_builder, {"source": "demo"}))
+
+
+@app.get("/ultimate", response_class=HTMLResponse)
+def ultimate_index() -> HTMLResponse:
+    html = (STATIC_DIR / "ultimate.html").read_text(encoding="utf-8")
+    return HTMLResponse(html)
 
 
 @app.get("/", response_class=HTMLResponse)

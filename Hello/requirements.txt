@@ -31,6 +31,10 @@ tiktoken>=0.5.0
 # fastmcp>=2.0.0,<3.0.0
 # a2a-sdk>=0.1.0
 
+# Web 控制台依赖 - 本次终极 dashboard 使用
+fastapi>=0.110.0,<1.0.0
+uvicorn>=0.30.0,<1.0.0
+
 # 评估系统依赖 - 可选安装: pip install hello_agents[evaluation]
 # datasets>=2.14.0                 # HuggingFace数据集加载
 # huggingface_hub>=0.20.0,<1.0.0   # HuggingFace Hub API
